@@ -296,6 +296,16 @@ export class OllamaProvider extends EventEmitter {
     }
   }
 
+  async getRunningModels(): Promise<any[]> {
+    try {
+      const response = await this.axiosInstance.get('/api/ps');
+      return response.data.models || [];
+    } catch (error: any) {
+      logger.error('Failed to get running models:', error.message);
+      return [];
+    }
+  }
+
   isReady(): boolean {
     return this.isInitialized && this.healthStatus.status === 'healthy';
   }

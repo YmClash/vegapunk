@@ -38,10 +38,28 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 
+interface RunningModel {
+  name: string;
+  model: string;
+  size: number;
+  digest: string;
+  details: {
+    parent_model: string;
+    format: string;
+    family: string;
+    families: string[];
+    parameter_size: string;
+    quantization_level: string;
+  };
+  expires_at: string;
+  size_vram: number;
+}
+
 interface OllamaStatus {
   status: string;
   version?: string;
   models?: string[];
+  runningModels?: RunningModel[];
   currentModel?: string;
   defaultModel?: string;
   error?: string;
@@ -317,6 +335,127 @@ export function OllamaMonitor() {
             {ollamaStatus?.error && (
               <Alert severity="error" sx={{ mt: 2 }}>
                 <strong>Error:</strong> {ollamaStatus.error}
+              </Alert>
+            )}
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Running Models with Performance */}
+        <Accordion expanded={expanded === 'running'} onChange={handleAccordionChange('running')}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+              <SpeedIcon sx={{ color: 'success.main' }} />
+              <Typography sx={{ ml: 1, fontWeight: 500 }}>
+                Running Models & Performance
+              </Typography>
+              <Box sx={{ ml: 'auto', mr: 2 }}>
+                <Badge badgeContent={ollamaStatus?.runningModels?.length || 0} color="success">
+                  <SpeedIcon />
+                </Badge>
+              </Box>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            {ollamaStatus?.runningModels && ollamaStatus.runningModels.length > 0 ? (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>Model Name</strong></TableCell>
+                      <TableCell><strong>Size</strong></TableCell>
+                      <TableCell><strong>VRAM Usage</strong></TableCell>
+                      <TableCell><strong>Format</strong></TableCell>
+                      <TableCell><strong>Parameter Size</strong></TableCell>
+                      <TableCell><strong>Expires</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {ollamaStatus.runningModels.map((model, index) => {
+                      const formatBytes = (bytes: number) => {
+                        const sizes = ['B', 'KB', 'MB', 'GB'];
+                        if (bytes === 0) return '0 B';
+                        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                        return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+                      };
+
+                      const formatExpiry = (expiresAt: string) => {
+                        const now = new Date();
+                        const expiry = new Date(expiresAt);
+                        const diffMs = expiry.getTime() - now.getTime();
+                        const diffMins = Math.round(diffMs / (1000 * 60));
+                        
+                        if (diffMins <= 0) return 'Expired';
+                        if (diffMins < 60) return `${diffMins}m`;
+                        const hours = Math.floor(diffMins / 60);
+                        const mins = diffMins % 60;
+                        return `${hours}h ${mins}m`;
+                      };
+
+                      return (
+                        <TableRow key={index} hover>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Chip 
+                                label={model.name}
+                                size="small"
+                                color={model.name === ollamaStatus.currentModel ? 'primary' : 'default'}
+                                variant={model.name === ollamaStatus.currentModel ? 'filled' : 'outlined'}
+                              />
+                              {model.name === ollamaStatus.currentModel && (
+                                <Chip label="Active" size="small" color="success" />
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontFamily="monospace">
+                              {formatBytes(model.size)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" fontFamily="monospace">
+                                {formatBytes(model.size_vram)}
+                              </Typography>
+                              <LinearProgress
+                                variant="determinate"
+                                value={Math.min((model.size_vram / model.size) * 100, 100)}
+                                sx={{ width: 60, height: 6, borderRadius: 3 }}
+                                color="info"
+                              />
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={model.details.format}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">
+                              {model.details.parameter_size}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography 
+                              variant="body2" 
+                              color={formatExpiry(model.expires_at).includes('Expired') ? 'error' : 'text.primary'}
+                            >
+                              {formatExpiry(model.expires_at)}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                <strong>No models currently running</strong>
+                <br />
+                Models will appear here when they are actively loaded in memory. 
+                Try sending a chat message to load the current model.
               </Alert>
             )}
           </AccordionDetails>

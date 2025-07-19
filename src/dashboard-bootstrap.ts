@@ -127,13 +127,45 @@ export async function startDashboardOnly(): Promise<void> {
       name: 'Vegapunk Agentic API',
       version: '1.0.0',
       status: 'operational',
+      description: 'Multi-agent AI system with debugging interface',
       endpoints: {
+        // Core API
         health: '/api/health',
         chat: '/api/chat',
-        models: '/api/models'
+        models: '/api/models',
+        
+        // Model Management
+        'models/switch': '/api/models/switch (POST)',
+        'models/current': '/api/models/current',
+        
+        // Debug & Monitoring
+        'debug/system': '/api/debug/system',
+        'debug/ollama': '/api/debug/ollama',
+        'debug/logs': '/api/debug/logs',
+        'debug/websockets': '/api/debug/websockets'
       },
-      frontend: 'http://localhost:5173',
-      websocket: 'ws://localhost:8080'
+      frontend: {
+        main: 'http://localhost:5173',
+        pages: {
+          home: 'http://localhost:5173/',
+          debug: 'http://localhost:5173/debug',
+          ollama: 'http://localhost:5173/ollama',
+          'chat-logs': 'http://localhost:5173/chat-logs',
+          websockets: 'http://localhost:5173/websockets',
+          errors: 'http://localhost:5173/errors',
+          performance: 'http://localhost:5173/performance'
+        }
+      },
+      websocket: 'ws://localhost:8080',
+      features: [
+        'Real-time chat with Ollama LLM',
+        'Dynamic model switching',
+        'System health monitoring',
+        'WebSocket connection tracking',
+        'Chat logs with filtering',
+        'Performance metrics visualization',
+        'Error monitoring and recovery'
+      ]
     });
   });
 
@@ -234,9 +266,11 @@ export async function startDashboardOnly(): Promise<void> {
       try {
         const ollamaStatus = await ollama.getHealthStatus();
         const models = await ollama.listModels();
+        const runningModels = await ollama.getRunningModels();
         const debugInfo = {
           ...ollamaStatus,
           models,
+          runningModels,
           currentModel: ollama.getCurrentModel(),
           defaultModel: ollama.getDefaultModel(),
           timestamp: new Date().toISOString()
