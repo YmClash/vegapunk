@@ -86,6 +86,42 @@ export async function startDashboardOnly(): Promise<void> {
       }
     });
 
+    // Debug monitoring endpoints
+    app.get('/api/debug/system', async (req, res) => {
+      try {
+        const systemInfo = {
+          timestamp: new Date().toISOString(),
+          uptime: process.uptime(),
+          memory: process.memoryUsage(),
+          cpu: process.cpuUsage(),
+          nodeVersion: process.version,
+          platform: process.platform,
+          arch: process.arch,
+          pid: process.pid
+        };
+        res.json(systemInfo);
+      } catch (error: any) {
+        logger.error('Failed to get system info:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/debug/ollama', async (req, res) => {
+      try {
+        const ollamaStatus = await ollama.getHealthStatus();
+        const models = await ollama.listModels();
+        const debugInfo = {
+          ...ollamaStatus,
+          models,
+          timestamp: new Date().toISOString()
+        };
+        res.json(debugInfo);
+      } catch (error: any) {
+        logger.error('Failed to get Ollama debug info:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // 4. WebSocket for real-time chat
     io.on('connection', (socket) => {
       logger.info(`📱 Client connected: ${socket.id}`);

@@ -20,6 +20,7 @@ import {
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { ChatInterface } from './components/ChatInterface';
 import { SystemStatus } from './components/SystemStatus';
+import { DebugDashboard } from './components/DebugDashboard';
 import { VegapunkTheme } from './theme/VegapunkTheme';
 import axios from 'axios';
 
@@ -151,17 +152,9 @@ function App() {
             <ChatInterface />
           </Paper>
 
-          {/* Future Components Placeholder */}
-          <Box sx={{ mt: 4, p: 3, border: '2px dashed', borderColor: 'divider', borderRadius: 2, opacity: 0.5 }}>
-            <Typography variant="h6" gutterBottom>
-              🚧 Coming Soon: Phase 2 Features
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              • Agent Status Grid - Monitor individual AI agents<br />
-              • Task Orchestration - View and manage multi-agent workflows<br />
-              • Performance Metrics - Real-time system analytics<br />
-              • Debug Console - Advanced monitoring tools
-            </Typography>
+          {/* Debug Dashboard - Phase 2 */}
+          <Box sx={{ mt: 4 }}>
+            <DebugDashboard />
           </Box>
         </Container>
       </Box>
