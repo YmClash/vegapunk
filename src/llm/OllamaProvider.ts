@@ -31,6 +31,7 @@ interface OllamaHealthStatus {
 export class OllamaProvider extends EventEmitter {
   private baseUrl: string;
   private defaultModel: string;
+  private currentModel: string;
   private isInitialized: boolean = false;
   private axiosInstance: AxiosInstance;
   private healthStatus: OllamaHealthStatus;
@@ -39,6 +40,7 @@ export class OllamaProvider extends EventEmitter {
     super();
     this.baseUrl = baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.defaultModel = defaultModel || process.env.OLLAMA_MODEL || 'qwen2:7b';
+    this.currentModel = this.defaultModel;
     
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
@@ -137,7 +139,7 @@ export class OllamaProvider extends EventEmitter {
 
     try {
       const request: OllamaGenerateRequest = {
-        model: this.defaultModel,
+        model: this.currentModel,
         prompt,
         stream: false,
         options: {
@@ -174,7 +176,7 @@ export class OllamaProvider extends EventEmitter {
 
     try {
       const request: OllamaGenerateRequest = {
-        model: this.defaultModel,
+        model: this.currentModel,
         prompt,
         stream: true,
         options: {
@@ -251,13 +253,47 @@ export class OllamaProvider extends EventEmitter {
     return this.healthStatus;
   }
 
-  setModel(modelName: string): void {
-    this.defaultModel = modelName;
-    logger.info(`🔄 Switched to model: ${modelName}`);
+  async setModel(modelName: string): Promise<void> {
+    try {
+      // Verify model exists
+      const availableModels = await this.listModels();
+      if (!availableModels.includes(modelName)) {
+        throw new Error(`Model ${modelName} is not available. Available models: ${availableModels.join(', ')}`);
+      }
+      
+      this.currentModel = modelName;
+      logger.info(`🔄 Switched to model: ${modelName}`);
+      this.emit('modelChanged', modelName);
+    } catch (error: any) {
+      logger.error(`Failed to switch to model ${modelName}:`, error.message);
+      throw error;
+    }
   }
 
-  getModel(): string {
+  getCurrentModel(): string {
+    return this.currentModel;
+  }
+
+  getDefaultModel(): string {
     return this.defaultModel;
+  }
+
+  async loadModel(modelName: string): Promise<void> {
+    try {
+      logger.info(`🔄 Loading model: ${modelName}...`);
+      
+      // Use the chat endpoint to load the model
+      await this.axiosInstance.post('/api/chat', {
+        model: modelName,
+        messages: [{ role: 'user', content: 'hello' }],
+        stream: false
+      });
+      
+      logger.info(`✅ Model ${modelName} loaded successfully`);
+    } catch (error: any) {
+      logger.error(`Failed to load model ${modelName}:`, error.message);
+      throw error;
+    }
   }
 
   isReady(): boolean {

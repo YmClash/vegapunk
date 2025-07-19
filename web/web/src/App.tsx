@@ -21,6 +21,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { ChatInterface } from './components/ChatInterface';
 import { SystemStatus } from './components/SystemStatus';
 import { DebugDashboard } from './components/DebugDashboard';
+import { ModelSelector } from './components/ModelSelector';
 import { VegapunkTheme } from './theme/VegapunkTheme';
 import axios from 'axios';
 
@@ -144,8 +145,13 @@ function App() {
             onRefresh={checkSystemHealth} 
           />
 
+          {/* Model Selection */}
+          <Box sx={{ mt: 3 }}>
+            <ModelSelector />
+          </Box>
+
           {/* Chat Interface */}
-          <Paper elevation={3} sx={{ p: 3 }}>
+          <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
             <Typography variant="h5" gutterBottom sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
               💬 Chat with Vegapunk
             </Typography>

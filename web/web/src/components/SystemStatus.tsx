@@ -30,8 +30,21 @@ interface SystemHealthStatus {
       status: string;
       version?: string;
       models?: string[];
+      currentModel?: string;
+      defaultModel?: string;
+      availableModels?: string[];
+      totalModels?: number;
       error?: string;
       lastCheck: string;
+    };
+  };
+  system?: {
+    uptime: number;
+    nodeVersion: string;
+    platform: string;
+    memory: {
+      used: number;
+      total: number;
     };
   };
 }
@@ -205,23 +218,23 @@ export function SystemStatus({ health, error, onRefresh }: SystemStatusProps) {
                   Version: {health.services.ollama.version}
                 </Typography>
               )}
-              {health.services.ollama.models && health.services.ollama.models.length > 0 && (
+              {health.services.ollama.currentModel && (
                 <Box mt={1}>
                   <Typography variant="caption" color="text.secondary">
-                    Available models:
+                    Current Model:
                   </Typography>
-                  <Box display="flex" gap={0.5} flexWrap="wrap" mt={0.5}>
-                    {health.services.ollama.models.map((model) => (
-                      <Chip
-                        key={model}
-                        label={model}
-                        size="small"
-                        variant="outlined"
-                        sx={{ fontSize: '0.75rem' }}
-                      />
-                    ))}
-                  </Box>
+                  <Chip
+                    label={health.services.ollama.currentModel}
+                    size="small"
+                    color="primary"
+                    sx={{ ml: 0.5, fontSize: '0.75rem' }}
+                  />
                 </Box>
+              )}
+              {health.services.ollama.totalModels !== undefined && (
+                <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                  Total Models: {health.services.ollama.totalModels}
+                </Typography>
               )}
               {health.services.ollama.error && (
                 <Alert severity="error" sx={{ mt: 1 }}>
@@ -231,6 +244,49 @@ export function SystemStatus({ health, error, onRefresh }: SystemStatusProps) {
             </Box>
           </Grid>
         </Grid>
+
+        {/* System Information */}
+        {health.system && (
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              System Information
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Uptime
+                </Typography>
+                <Typography variant="body2" fontWeight="bold">
+                  {Math.floor(health.system.uptime / 3600)}h {Math.floor((health.system.uptime % 3600) / 60)}m
+                </Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Node.js
+                </Typography>
+                <Typography variant="body2" fontWeight="bold">
+                  {health.system.nodeVersion}
+                </Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Platform
+                </Typography>
+                <Typography variant="body2" fontWeight="bold">
+                  {health.system.platform}
+                </Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="caption" color="text.secondary">
+                  Memory Usage
+                </Typography>
+                <Typography variant="body2" fontWeight="bold">
+                  {Math.round((health.system.memory.used / health.system.memory.total) * 100)}%
+                </Typography>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
 
         {/* Overall System Status */}
         <Box
