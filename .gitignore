@@ -1,0 +1,111 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production
+dist/
+build/
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# TypeScript
+*.tsbuildinfo
+.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Cache
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Redis dump
+dump.rdb
+
+# Prisma
+prisma/migrations/dev/
+
+# Docker
+.docker/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Agent-specific
+/agents-data/
+/memory-store/
+/logs/
+/metrics/

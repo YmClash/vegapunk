@@ -1,0 +1,134 @@
+version: '3.9'
+
+services:
+  vegapunk:
+    build: .
+    container_name: vegapunk-agentic
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "9090:9090"
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - NEO4J_URI=bolt://neo4j:7687
+      - DATABASE_URL=postgresql://vegapunk:vegapunk@postgres:5432/vegapunk_db
+    depends_on:
+      - redis
+      - neo4j
+      - postgres
+      - ollama
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+      - ./memory-store:/app/memory-store
+    networks:
+      - vegapunk-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vegapunk-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - vegapunk-network
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5-community
+    container_name: vegapunk-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/vegapunk123
+      - NEO4J_dbms_memory_pagecache_size=1G
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    networks:
+      - vegapunk-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: vegapunk-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=vegapunk
+      - POSTGRES_PASSWORD=vegapunk
+      - POSTGRES_DB=vegapunk_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - vegapunk-network
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vegapunk-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - vegapunk-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Optional: Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vegapunk-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - vegapunk-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: vegapunk-grafana
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=vegapunk
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - vegapunk-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+networks:
+  vegapunk-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  neo4j-data:
+  neo4j-logs:
+  postgres-data:
+  ollama-data:
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,532 @@
+"""
+Main GraphQL Schema for Vegapunk Agentic System
+Integrates with LangGraph for advanced agent workflows
+"""
+
+scalar DateTime
+scalar JSON
+scalar UUID
+
+directive @auth(requires: Role = USER) on OBJECT | FIELD_DEFINITION
+directive @rateLimit(max: Int = 60, window: String = "1m") on FIELD_DEFINITION
+directive @cache(ttl: Int = 60) on FIELD_DEFINITION
+
+enum Role {
+  ADMIN
+  USER
+  VIEWER
+}
+
+type Query {
+  # Agent Queries
+  agents(
+    status: AgentStatus
+    type: AgentType
+    limit: Int = 50
+    offset: Int = 0
+  ): AgentConnection! @cache(ttl: 30)
+  
+  agent(id: UUID!): Agent
+  agentByName(name: String!): Agent
+  
+  # Task Queries
+  tasks(
+    status: TaskStatus
+    priority: TaskPriority
+    assignedAgent: UUID
+    limit: Int = 50
+    offset: Int = 0
+  ): TaskConnection!
+  
+  task(id: UUID!): Task
+  taskProgress(id: UUID!): TaskProgress
+  
+  # Collaboration Queries
+  collaborations(
+    status: CollaborationStatus
+    limit: Int = 50
+    offset: Int = 0
+  ): CollaborationConnection!
+  
+  collaboration(id: UUID!): Collaboration
+  
+  # Workflow Queries (LangGraph Integration)
+  workflows(
+    status: WorkflowStatus
+    limit: Int = 50
+    offset: Int = 0
+  ): WorkflowConnection!
+  
+  workflow(id: UUID!): Workflow
+  workflowGraph(id: UUID!): WorkflowGraph
+  
+  # System Queries
+  systemStatus: SystemStatus! @auth(requires: ADMIN)
+  systemMetrics(period: String = "1h"): SystemMetrics!
+  
+  # Analytics Queries
+  agentPerformance(
+    agentId: UUID!
+    period: String = "24h"
+  ): AgentPerformance! @cache(ttl: 300)
+  
+  taskAnalytics(
+    period: String = "24h"
+    groupBy: String = "status"
+  ): TaskAnalytics!
+  
+  collaborationInsights(
+    period: String = "7d"
+  ): CollaborationInsights!
+}
+
+type Mutation {
+  # Agent Mutations
+  createAgent(input: CreateAgentInput!): Agent! @auth(requires: ADMIN)
+  updateAgent(id: UUID!, input: UpdateAgentInput!): Agent! @auth(requires: ADMIN)
+  deleteAgent(id: UUID!): Boolean! @auth(requires: ADMIN)
+  
+  startAgent(id: UUID!): Agent! @rateLimit(max: 10, window: "1m")
+  stopAgent(id: UUID!): Agent! @rateLimit(max: 10, window: "1m")
+  resetAgent(id: UUID!, clearMemory: Boolean = true): Agent!
+  
+  # Task Mutations
+  createTask(input: CreateTaskInput!): TaskAllocation!
+  updateTask(id: UUID!, input: UpdateTaskInput!): Task!
+  cancelTask(id: UUID!, reason: String): Boolean!
+  
+  allocateTask(id: UUID!, input: AllocateTaskInput): TaskAllocation!
+  retryTask(id: UUID!, strategy: RetryStrategy = SAME_AGENT): Task!
+  
+  # Collaboration Mutations
+  createCollaboration(input: CreateCollaborationInput!): Collaboration!
+  updateCollaboration(id: UUID!, input: UpdateCollaborationInput!): Collaboration!
+  endCollaboration(id: UUID!): Boolean!
+  
+  # Workflow Mutations (LangGraph)
+  createWorkflow(input: CreateWorkflowInput!): Workflow!
+  executeWorkflow(id: UUID!, input: JSON): WorkflowExecution!
+  pauseWorkflow(id: UUID!): Workflow!
+  resumeWorkflow(id: UUID!): Workflow!
+  cancelWorkflow(id: UUID!): Boolean!
+  
+  # System Mutations
+  optimizeSystem: SystemOptimization! @auth(requires: ADMIN)
+  triggerEmergencyResponse(input: EmergencyInput!): EmergencyResponse! @auth(requires: ADMIN)
+  
+  # Communication Mutations
+  sendMessage(input: SendMessageInput!): Message!
+  initiateNegotiation(input: NegotiationInput!): Negotiation!
+  castVote(proposalId: UUID!, vote: VoteChoice!): VoteResult!
+}
+
+type Subscription {
+  # Real-time Agent Updates
+  agentStatusChanged(agentId: UUID): AgentStatusUpdate!
+  agentMetricsUpdated(agentId: UUID): AgentMetrics!
+  
+  # Real-time Task Updates
+  taskStatusChanged(taskId: UUID): TaskStatusUpdate!
+  taskProgressUpdated(taskId: UUID): TaskProgress!
+  taskAllocated: TaskAllocation!
+  
+  # Real-time Collaboration Updates
+  collaborationUpdated(collaborationId: UUID): CollaborationUpdate!
+  messageReceived(collaborationId: UUID!): Message!
+  
+  # Real-time Workflow Updates (LangGraph)
+  workflowStateChanged(workflowId: UUID!): WorkflowState!
+  workflowNodeExecuted(workflowId: UUID!): NodeExecution!
+  
+  # System Events
+  systemEvent(severity: EventSeverity): SystemEvent!
+  emergencyAlert: EmergencyAlert!
+  
+  # Performance Metrics
+  performanceMetrics: PerformanceUpdate!
+}
+
+# Agent Types
+enum AgentType {
+  ATLAS
+  EDISON
+  PYTHAGORAS
+  LILITH
+  YORK
+  SHAKA
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  ERROR
+}
+
+type Agent {
+  id: UUID!
+  name: String!
+  type: AgentType!
+  status: AgentStatus!
+  capabilities: [String!]!
+  currentWorkload: Float!
+  memoryUsage: MemoryUsage!
+  performance: AgentPerformance!
+  tasks(limit: Int = 10): [Task!]!
+  collaborations: [Collaboration!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type AgentConnection {
+  edges: [AgentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AgentEdge {
+  node: Agent!
+  cursor: String!
+}
+
+# Task Types
+enum TaskStatus {
+  PENDING
+  ALLOCATED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+type Task {
+  id: UUID!
+  description: String!
+  type: String!
+  priority: TaskPriority!
+  status: TaskStatus!
+  assignedAgent: Agent
+  allocation: TaskAllocation
+  progress: TaskProgress
+  dependencies: [Task!]!
+  requiredSkills: [String!]!
+  estimatedDuration: Int!
+  deadline: DateTime
+  context: JSON!
+  constraints: [Constraint!]!
+  expectedOutcomes: [Outcome!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type TaskAllocation {
+  id: UUID!
+  task: Task!
+  assignedAgent: Agent!
+  priority: Float!
+  allocationTimestamp: DateTime!
+  expectedCompletion: DateTime!
+  resourceRequirements: [ResourceRequirement!]!
+  riskAssessment: RiskAssessment!
+  allocationReasoning: String!
+}
+
+# Collaboration Types
+enum CollaborationStatus {
+  PLANNING
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+type Collaboration {
+  id: UUID!
+  goal: CollaborationGoal!
+  status: CollaborationStatus!
+  participants: [Agent!]!
+  plan: CollaborationPlan!
+  messages: [Message!]!
+  progress: CollaborationProgress!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# Workflow Types (LangGraph Integration)
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+type Workflow {
+  id: UUID!
+  name: String!
+  description: String!
+  status: WorkflowStatus!
+  graph: WorkflowGraph!
+  currentState: WorkflowState!
+  executions: [WorkflowExecution!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type WorkflowGraph {
+  nodes: [WorkflowNode!]!
+  edges: [WorkflowEdge!]!
+  entryPoint: String!
+  conditionalEdges: [ConditionalEdge!]!
+}
+
+type WorkflowNode {
+  id: String!
+  type: String!
+  agentType: AgentType
+  config: JSON!
+}
+
+type WorkflowEdge {
+  from: String!
+  to: String!
+  condition: String
+}
+
+type ConditionalEdge {
+  from: String!
+  conditions: [EdgeCondition!]!
+}
+
+type EdgeCondition {
+  expression: String!
+  target: String!
+}
+
+type WorkflowState {
+  messages: [JSON!]!
+  currentAgent: String
+  taskStatus: JSON!
+  collaborationState: JSON!
+  workflowMetadata: JSON!
+}
+
+type WorkflowExecution {
+  id: UUID!
+  workflow: Workflow!
+  status: WorkflowStatus!
+  startedAt: DateTime!
+  completedAt: DateTime
+  steps: [ExecutionStep!]!
+  result: JSON
+  error: String
+}
+
+type ExecutionStep {
+  node: String!
+  startedAt: DateTime!
+  completedAt: DateTime!
+  input: JSON!
+  output: JSON!
+  error: String
+}
+
+# System Types
+type SystemStatus {
+  overallHealth: Float!
+  operationalMode: String!
+  systemLoad: SystemLoad!
+  reliabilityStatus: ReliabilityStatus!
+  securityStatus: SecurityStatus!
+  performanceStatus: PerformanceStatus!
+}
+
+type SystemMetrics {
+  period: String!
+  taskMetrics: TaskMetrics!
+  agentMetrics: AgentMetrics!
+  collaborationMetrics: CollaborationMetrics!
+  resourceMetrics: ResourceMetrics!
+}
+
+# Input Types
+input CreateAgentInput {
+  name: String!
+  type: AgentType!
+  capabilities: [String!]
+  config: JSON
+  autoStart: Boolean
+}
+
+input UpdateAgentInput {
+  name: String
+  status: AgentStatus
+  capabilities: [String!]
+  config: JSON
+}
+
+input CreateTaskInput {
+  description: String!
+  type: String!
+  priority: TaskPriority!
+  deadline: DateTime
+  requiredSkills: [String!]
+  estimatedDurationMinutes: Int
+  dependencies: [UUID!]
+  context: JSON
+  constraints: [ConstraintInput!]
+  expectedOutcomes: [OutcomeInput!]
+}
+
+input CreateCollaborationInput {
+  goal: CollaborationGoalInput!
+  participants: [UUID!]!
+  timeline: TimelineInput!
+  constraints: [ConstraintInput!]
+}
+
+input CreateWorkflowInput {
+  name: String!
+  description: String!
+  graph: WorkflowGraphInput!
+  autoStart: Boolean
+}
+
+input WorkflowGraphInput {
+  nodes: [WorkflowNodeInput!]!
+  edges: [WorkflowEdgeInput!]!
+  entryPoint: String!
+  conditionalEdges: [ConditionalEdgeInput!]
+}
+
+# Supporting Types
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type MemoryUsage {
+  shortTerm: Int!
+  longTerm: Int!
+  total: Int!
+  limit: Int!
+}
+
+type AgentPerformance {
+  successRate: Float!
+  averageTaskTime: Float!
+  tasksCompleted: Int!
+  collaborationScore: Float!
+  efficiencyRating: Float!
+}
+
+type TaskProgress {
+  percentage: Float!
+  currentStep: String!
+  estimatedTimeRemaining: Int!
+  milestones: [Milestone!]!
+}
+
+type CollaborationGoal {
+  id: UUID!
+  description: String!
+  objective: String!
+  successCriteria: [String!]!
+  targetOutcomes: [Outcome!]!
+}
+
+type CollaborationPlan {
+  id: UUID!
+  structure: String!
+  communicationProtocols: [String!]!
+  coordinationMechanisms: [String!]!
+  conflictResolutionProcedures: [String!]!
+  successMetrics: [Metric!]!
+}
+
+type Message {
+  id: UUID!
+  sender: Agent!
+  recipients: [Agent!]!
+  type: MessageType!
+  subject: String!
+  content: JSON!
+  timestamp: DateTime!
+  priority: Int!
+}
+
+enum MessageType {
+  STANDARD
+  PRIORITY
+  BROADCAST
+  NEGOTIATION
+  CONSENSUS
+  EMERGENCY
+}
+
+# Additional supporting types for completeness
+type Constraint {
+  type: String!
+  description: String!
+  severity: String!
+}
+
+input ConstraintInput {
+  type: String!
+  description: String!
+  severity: String!
+}
+
+type Outcome {
+  type: String!
+  description: String!
+  qualityCriteria: [String!]!
+}
+
+input OutcomeInput {
+  type: String!
+  description: String!
+  qualityCriteria: [String!]
+}
+
+type ResourceRequirement {
+  resourceType: String!
+  amount: Float!
+  unit: String!
+  criticality: String!
+}
+
+type RiskAssessment {
+  overallRisk: Float!
+  riskFactors: [RiskFactor!]!
+  mitigationStrategies: [String!]!
+}
+
+type RiskFactor {
+  factor: String!
+  impact: Float!
+  likelihood: Float!
+  description: String!
+}
+
+type Milestone {
+  name: String!
+  completed: Boolean!
+  completedAt: DateTime
+}
+
+type Metric {
+  name: String!
+  value: Float!
+  unit: String!
+  trend: String!
+}
