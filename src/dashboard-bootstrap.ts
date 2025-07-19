@@ -17,8 +17,23 @@ interface ChatLog {
   responseTime?: number;
 }
 
+// WebSocket connections tracking
+interface SocketConnection {
+  id: string;
+  connectedAt: string;
+  disconnectedAt?: string;
+  isActive: boolean;
+  messagesCount: number;
+  lastActivity: string;
+  userAgent?: string;
+  remoteAddress?: string;
+}
+
 const chatLogs: ChatLog[] = [];
+const socketConnections: Map<string, SocketConnection> = new Map();
+const connectionHistory: SocketConnection[] = [];
 const MAX_LOGS = 1000; // Keep last 1000 messages
+const MAX_CONNECTION_HISTORY = 100; // Keep last 100 connections
 
 function addChatLog(type: ChatLog['type'], message: string, socketId?: string, responseTime?: number) {
   const log: ChatLog = {
@@ -36,6 +51,60 @@ function addChatLog(type: ChatLog['type'], message: string, socketId?: string, r
   }
   
   logger.info(`Chat log added: ${type} - ${message.substring(0, 50)}...`);
+}
+
+function addSocketConnection(socketId: string, req: any) {
+  const connection: SocketConnection = {
+    id: socketId,
+    connectedAt: new Date().toISOString(),
+    isActive: true,
+    messagesCount: 0,
+    lastActivity: new Date().toISOString(),
+    userAgent: req.headers['user-agent'],
+    remoteAddress: req.connection.remoteAddress || req.socket.remoteAddress
+  };
+  
+  socketConnections.set(socketId, connection);
+  logger.info(`WebSocket connection added: ${socketId}`);
+}
+
+function updateSocketActivity(socketId: string) {
+  const connection = socketConnections.get(socketId);
+  if (connection) {
+    connection.lastActivity = new Date().toISOString();
+    connection.messagesCount++;
+  }
+}
+
+function removeSocketConnection(socketId: string) {
+  const connection = socketConnections.get(socketId);
+  if (connection) {
+    connection.isActive = false;
+    connection.disconnectedAt = new Date().toISOString();
+    
+    // Move to history
+    connectionHistory.unshift({ ...connection });
+    if (connectionHistory.length > MAX_CONNECTION_HISTORY) {
+      connectionHistory.splice(MAX_CONNECTION_HISTORY);
+    }
+    
+    socketConnections.delete(socketId);
+    logger.info(`WebSocket connection removed: ${socketId}`);
+  }
+}
+
+function getWebSocketStats() {
+  const activeConnections = Array.from(socketConnections.values());
+  const totalMessagesActive = activeConnections.reduce((sum, conn) => sum + conn.messagesCount, 0);
+  const totalMessagesHistory = connectionHistory.reduce((sum, conn) => sum + conn.messagesCount, 0);
+  
+  return {
+    activeConnections: activeConnections.length,
+    totalConnections: activeConnections.length + connectionHistory.length,
+    totalMessages: totalMessagesActive + totalMessagesHistory,
+    avgMessagesPerConnection: activeConnections.length > 0 ? 
+      Math.round(totalMessagesActive / activeConnections.length) : 0
+  };
 }
 
 export async function startDashboardOnly(): Promise<void> {
@@ -245,9 +314,30 @@ export async function startDashboardOnly(): Promise<void> {
       }
     });
 
+    app.get('/api/debug/websockets', (req, res) => {
+      try {
+        const stats = getWebSocketStats();
+        const activeConnections = Array.from(socketConnections.values());
+        const recentHistory = connectionHistory.slice(0, 20); // Last 20 connections
+        
+        res.json({
+          stats,
+          activeConnections,
+          connectionHistory: recentHistory,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error: any) {
+        logger.error('Failed to get WebSocket debug info:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // 4. WebSocket for real-time chat
     io.on('connection', (socket) => {
       logger.info(`📱 Client connected: ${socket.id}`);
+      
+      // Track connection
+      addSocketConnection(socket.id, socket.request);
       addChatLog('system', `Client connected: ${socket.id}`, socket.id);
       
       socket.on('chat-message', async (data) => {
@@ -255,6 +345,8 @@ export async function startDashboardOnly(): Promise<void> {
           const { message, streamMode = false } = data;
           const startTime = Date.now();
           
+          // Update activity
+          updateSocketActivity(socket.id);
           addChatLog('user', message, socket.id);
           
           if (streamMode) {
@@ -282,6 +374,9 @@ export async function startDashboardOnly(): Promise<void> {
 
       socket.on('disconnect', () => {
         logger.info(`📱 Client disconnected: ${socket.id}`);
+        
+        // Remove connection tracking
+        removeSocketConnection(socket.id);
         addChatLog('system', `Client disconnected: ${socket.id}`, socket.id);
       });
     });

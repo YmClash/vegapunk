@@ -30,6 +30,9 @@ import {
 import axios from 'axios';
 import { OllamaMonitor } from './OllamaMonitor';
 import { ChatLogsViewer } from './ChatLogsViewer';
+import { WebSocketMonitor } from './WebSocketMonitor';
+import { ErrorMonitor } from './ErrorMonitor';
+import { PerformanceMetrics } from './PerformanceMetrics';
 
 interface SystemInfo {
   timestamp: string;
@@ -271,6 +274,21 @@ export function DebugDashboard() {
         {/* Chat Logs Viewer */}
         <Grid item xs={12}>
           <ChatLogsViewer />
+        </Grid>
+
+        {/* WebSocket Monitor */}
+        <Grid item xs={12}>
+          <WebSocketMonitor />
+        </Grid>
+
+        {/* Error Monitor */}
+        <Grid item xs={12}>
+          <ErrorMonitor />
+        </Grid>
+
+        {/* Performance Metrics */}
+        <Grid item xs={12}>
+          <PerformanceMetrics />
         </Grid>
       </Grid>
     </Box>
