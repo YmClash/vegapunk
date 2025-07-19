@@ -20,7 +20,22 @@ export async function startDashboardOnly(): Promise<void> {
   // Middleware
   app.use(cors());
   app.use(express.json());
-  // Ne pas servir les fichiers statiques pour l'instant - frontend séparé
+  
+  // Root endpoint - API info
+  app.get('/', (_req, res) => {
+    res.json({
+      name: 'Vegapunk Agentic API',
+      version: '1.0.0',
+      status: 'operational',
+      endpoints: {
+        health: '/api/health',
+        chat: '/api/chat',
+        models: '/api/models'
+      },
+      frontend: 'http://localhost:5173',
+      websocket: 'ws://localhost:8080'
+    });
+  });
 
   try {
     // 1. Initialize Ollama

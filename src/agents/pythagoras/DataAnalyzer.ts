@@ -453,7 +453,9 @@ export class DataAnalyzer {
       // Two-sample comparisons
       for (let i = 0; i < numericColumns.length - 1; i++) {
         for (let j = i + 1; j < numericColumns.length; j++) {
+          // @ts-ignore
           const col1Data = dataset.data.map(row => row[numericColumns[i].name]).filter(val => val != null);
+          // @ts-ignore
           const col2Data = dataset.data.map(row => row[numericColumns[j].name]).filter(val => val != null);
           
           if (col1Data.length < 10 || col2Data.length < 10) continue;

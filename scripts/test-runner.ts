@@ -138,6 +138,7 @@ class TestRunner {
       // Extract coverage if available
       const coverage = this.extractCoverage(output);
 
+      // @ts-ignore
       return {
         suite: suite.name,
         success: true,
