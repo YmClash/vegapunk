@@ -3,6 +3,12 @@ node_modules/
 .pnp
 .pnp.js
 
+
+
+
+# Claude
+CLAUDE.md
+
 # Production
 dist/
 build/
