@@ -1,4 +1,5 @@
-import { OllamaProvider } from '../llm/OllamaProvider';
+import { OllamaProvider } from '@/llm/OllamaProvider';
+import { HuggingFaceProvider } from '@/llm/HuggingFaceProvider';
 import { logger } from '../utils/logger';
 import { EventEmitter } from 'events';
 
@@ -16,12 +17,28 @@ interface ChatContext {
   maxHistoryLength: number;
 }
 
+type LLMProvider = OllamaProvider | HuggingFaceProvider;
+
+type ProviderType = 'ollama' | 'huggingface';
+
 export class ChatHandler extends EventEmitter {
   private context: ChatContext;
   private messageIdCounter: number = 0;
+  private providers: Map<ProviderType, LLMProvider>;
+  private currentProvider: ProviderType;
 
-  constructor(private ollama: OllamaProvider) {
+  constructor(private ollama: OllamaProvider, private huggingface?: HuggingFaceProvider) {
     super();
+    
+    this.providers = new Map();
+    this.providers.set('ollama', ollama);
+    
+    if (huggingface) {
+      this.providers.set('huggingface', huggingface);
+    }
+    
+    // Default to Ollama, fallback to Hugging Face if available
+    this.currentProvider = 'ollama';
     
     this.context = {
       messages: [],
@@ -110,10 +127,18 @@ Assistant:`;
       // Build prompt with context
       const prompt = this.buildPrompt(userMessage);
       
-      logger.debug('Processing chat message', { userMessage: userMessage.substring(0, 100) });
+      logger.debug('Processing chat message', { 
+        userMessage: userMessage.substring(0, 100),
+        provider: this.currentProvider 
+      });
       
-      // Get response from Ollama
-      const response = await this.ollama.generateResponse(prompt);
+      // Get response from current provider
+      const provider = this.providers.get(this.currentProvider);
+      if (!provider) {
+        throw new Error(`Provider ${this.currentProvider} not available`);
+      }
+      
+      const response = await provider.generateResponse(prompt);
       
       // Add assistant response to context
       this.addMessage(response, 'assistant');
@@ -121,8 +146,9 @@ Assistant:`;
       return response;
     } catch (error: any) {
       logger.error('Chat processing error:', error);
-      const errorMessage = 'I apologize, but I encountered an error processing your message. Please ensure Ollama is running and try again.';
-      this.addMessage(errorMessage, 'assistant', { error: error.message });
+      const providerName = this.currentProvider === 'ollama' ? 'Ollama' : 'Hugging Face';
+      const errorMessage = `I apologize, but I encountered an error processing your message. Please ensure ${providerName} is properly configured and try again.`;
+      this.addMessage(errorMessage, 'assistant', { error: error.message, provider: this.currentProvider });
       throw error;
     }
   }
@@ -135,12 +161,21 @@ Assistant:`;
       // Build prompt with context
       const prompt = this.buildPrompt(userMessage);
       
-      logger.debug('Streaming chat message', { userMessage: userMessage.substring(0, 100) });
+      logger.debug('Streaming chat message', { 
+        userMessage: userMessage.substring(0, 100),
+        provider: this.currentProvider 
+      });
       
       let fullResponse = '';
       
-      // Stream response from Ollama
-      await this.ollama.streamResponse(prompt, (chunk: string) => {
+      // Get response from current provider
+      const provider = this.providers.get(this.currentProvider);
+      if (!provider) {
+        throw new Error(`Provider ${this.currentProvider} not available`);
+      }
+      
+      // Stream response from current provider
+      await provider.streamResponse(prompt, (chunk: string) => {
         fullResponse += chunk;
         onChunk(chunk);
       });
@@ -150,8 +185,9 @@ Assistant:`;
       
     } catch (error: any) {
       logger.error('Chat streaming error:', error);
-      const errorMessage = 'I apologize, but I encountered an error streaming the response. Please ensure Ollama is running and try again.';
-      this.addMessage(errorMessage, 'assistant', { error: error.message });
+      const providerName = this.currentProvider === 'ollama' ? 'Ollama' : 'Hugging Face';
+      const errorMessage = `I apologize, but I encountered an error streaming the response. Please ensure ${providerName} is properly configured and try again.`;
+      this.addMessage(errorMessage, 'assistant', { error: error.message, provider: this.currentProvider });
       throw error;
     }
   }
@@ -170,6 +206,64 @@ Assistant:`;
 
   getMessageCount(): number {
     return this.context.messages.length - 1; // Exclude system message
+  }
+
+  // Provider management methods
+  setProvider(providerType: ProviderType): void {
+    if (!this.providers.has(providerType)) {
+      throw new Error(`Provider ${providerType} not available`);
+    }
+    
+    const oldProvider = this.currentProvider;
+    this.currentProvider = providerType;
+    
+    logger.info(`🔄 Switched LLM provider from ${oldProvider} to ${providerType}`);
+    this.emit('provider-changed', { from: oldProvider, to: providerType });
+  }
+
+  getCurrentProvider(): ProviderType {
+    return this.currentProvider;
+  }
+
+  getAvailableProviders(): ProviderType[] {
+    return Array.from(this.providers.keys());
+  }
+
+  async getProviderStatus(): Promise<Record<ProviderType, any>> {
+    const status: Record<string, any> = {};
+    
+    for (const [providerType, provider] of this.providers) {
+      try {
+        if (providerType === 'ollama') {
+          const ollamaProvider = provider as OllamaProvider;
+          status[providerType] = await ollamaProvider.getHealthStatus();
+        } else if (providerType === 'huggingface') {
+          const hfProvider = provider as HuggingFaceProvider;
+          status[providerType] = await hfProvider.getHealthStatus();
+        }
+      } catch (error) {
+        // @ts-ignore
+        status[providerType] = { status: 'error', error: error.message };
+      }
+    }
+    
+    return status;
+  }
+
+  addProvider(providerType: ProviderType, provider: LLMProvider): void {
+    this.providers.set(providerType, provider);
+    logger.info(`➕ Added LLM provider: ${providerType}`);
+    this.emit('provider-added', providerType);
+  }
+
+  removeProvider(providerType: ProviderType): void {
+    if (providerType === this.currentProvider) {
+      throw new Error('Cannot remove the currently active provider');
+    }
+    
+    this.providers.delete(providerType);
+    logger.info(`➖ Removed LLM provider: ${providerType}`);
+    this.emit('provider-removed', providerType);
   }
 }
 

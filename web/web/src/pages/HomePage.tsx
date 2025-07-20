@@ -13,6 +13,7 @@ import {
 import { ChatInterface } from '../components/ChatInterface';
 import { SystemStatus } from '../components/SystemStatus';
 import { ModelSelector } from '../components/ModelSelector';
+import { ProviderSelector } from '../components/ProviderSelector';
 import axios from 'axios';
 
 interface SystemHealth {
@@ -160,6 +161,11 @@ export function HomePage() {
           error={error} 
           onRefresh={checkSystemHealth} 
         />
+
+        {/* Provider Selection */}
+        <Box sx={{ mt: 3 }}>
+          <ProviderSelector />
+        </Box>
 
         {/* Model Selection */}
         <Box sx={{ mt: 3 }}>

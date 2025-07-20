@@ -4,6 +4,7 @@ import { Server as SocketServer } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
 import { OllamaProvider } from './llm/OllamaProvider';
+import { HuggingFaceProvider } from './llm/HuggingFaceProvider';
 import { ChatHandler } from './chat/ChatHandler';
 import { logger } from './utils/logger';
 
@@ -176,13 +177,37 @@ export async function startDashboardOnly(): Promise<void> {
     await ollama.initialize();
     logger.info('✅ Ollama provider initialized');
 
-    // 2. Create Chat Handler
-    const chatHandler = new ChatHandler(ollama);
+    // 2. Initialize Hugging Face (optional)
+    let huggingface: HuggingFaceProvider | undefined;
+    try {
+      logger.info('🔧 Initializing Hugging Face provider...');
+      huggingface = new HuggingFaceProvider();
+      await huggingface.initialize();
+      logger.info('✅ Hugging Face provider initialized');
+    } catch (error: any) {
+      logger.warn('⚠️ Hugging Face provider initialization failed:', error.message);
+      logger.info('Continuing without Hugging Face support');
+    }
 
-    // 3. API Routes
+    // 3. Create Chat Handler with both providers
+    const chatHandler = new ChatHandler(ollama, huggingface);
+
+    // 4. API Routes
     app.get('/api/health', async (req, res) => {
       const health = await ollama.getHealthStatus();
       const models = await ollama.listModels();
+      
+      let hfHealth = null;
+      let hfModels: string[] = [];
+      if (huggingface) {
+        try {
+          hfHealth = await huggingface.getHealthStatus();
+          hfModels = await huggingface.listModels();
+        } catch (error) {
+          logger.warn('Failed to get Hugging Face status:', error);
+        }
+      }
+      
       res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
@@ -195,7 +220,20 @@ export async function startDashboardOnly(): Promise<void> {
             defaultModel: ollama.getDefaultModel(),
             availableModels: models,
             totalModels: models.length
-          }
+          },
+          huggingface: hfHealth ? {
+            ...hfHealth,
+            currentModel: huggingface?.getCurrentModel(),
+            defaultModel: huggingface?.getDefaultModel(),
+            availableModels: hfModels,
+            totalModels: hfModels.length,
+            apiKeyConfigured: huggingface?.getApiKeyStatus()
+          } : {
+            status: 'unavailable',
+            error: 'Not configured or API key missing'
+          },
+          currentProvider: chatHandler.getCurrentProvider(),
+          availableProviders: chatHandler.getAvailableProviders()
         },
         system: {
           uptime: process.uptime(),
@@ -315,12 +353,69 @@ export async function startDashboardOnly(): Promise<void> {
 
     app.get('/api/models/current', (req, res) => {
       try {
-        res.json({
-          currentModel: ollama.getCurrentModel(),
-          defaultModel: ollama.getDefaultModel()
-        });
+        const currentProvider = chatHandler.getCurrentProvider();
+        if (currentProvider === 'ollama') {
+          res.json({
+            provider: 'ollama',
+            currentModel: ollama.getCurrentModel(),
+            defaultModel: ollama.getDefaultModel()
+          });
+        } else if (currentProvider === 'huggingface' && huggingface) {
+          res.json({
+            provider: 'huggingface',
+            currentModel: huggingface.getCurrentModel(),
+            defaultModel: huggingface.getDefaultModel()
+          });
+        } else {
+          res.status(500).json({ error: 'Unknown provider' });
+        }
       } catch (error: any) {
         logger.error('Failed to get current model:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Provider management endpoints
+    app.post('/api/providers/switch', async (req, res) => {
+      try {
+        const { provider } = req.body;
+        if (!provider) {
+          return res.status(400).json({ error: 'Provider is required' });
+        }
+        
+        addChatLog('system', `Switching to provider: ${provider}`);
+        chatHandler.setProvider(provider);
+        
+        res.json({ 
+          success: true, 
+          currentProvider: chatHandler.getCurrentProvider(),
+          message: `Switched to provider: ${provider}`
+        });
+      } catch (error: any) {
+        logger.error('Failed to switch provider:', error);
+        addChatLog('error', `Failed to switch provider: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/providers/current', (req, res) => {
+      try {
+        res.json({
+          currentProvider: chatHandler.getCurrentProvider(),
+          availableProviders: chatHandler.getAvailableProviders()
+        });
+      } catch (error: any) {
+        logger.error('Failed to get current provider:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/providers/status', async (req, res) => {
+      try {
+        const status = await chatHandler.getProviderStatus();
+        res.json(status);
+      } catch (error: any) {
+        logger.error('Failed to get provider status:', error);
         res.status(500).json({ error: error.message });
       }
     });

@@ -38,8 +38,8 @@ export class OllamaProvider extends EventEmitter {
 
   constructor(baseUrl?: string, defaultModel?: string) {
     super();
-    this.baseUrl = baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-    this.defaultModel = defaultModel || process.env.OLLAMA_MODEL || 'qwen2:7b';
+    this.baseUrl = baseUrl || process.env['OLLAMA_BASE_URL'] || 'http://localhost:11434';
+    this.defaultModel = defaultModel || process.env['OLLAMA_MODEL'] || 'qwen2:7b';
     this.currentModel = this.defaultModel;
     
     this.axiosInstance = axios.create({
