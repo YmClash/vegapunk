@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Box,
   TextField,
@@ -23,106 +23,35 @@ import {
   Clear as ClearIcon,
   Stream as StreamIcon
 } from '@mui/icons-material';
-import { io, Socket } from 'socket.io-client';
-
-interface Message {
-  id: string;
-  text: string;
-  sender: 'user' | 'bot';
-  timestamp: Date;
-  isStreaming?: boolean;
-}
+import { useChatContext } from '../contexts/ChatContext';
 
 export function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [currentMessage, setCurrentMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [streamMode, setStreamMode] = useState(false);
-  const [currentStreamMessage, setCurrentStreamMessage] = useState('');
+  const {
+    messages,
+    currentMessage,
+    isTyping,
+    connected,
+    streamMode,
+    currentStreamMessage,
+    setCurrentMessage,
+    setStreamMode,
+    sendMessage,
+    clearMessages
+  } = useChatContext();
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Connect to WebSocket server
-    const newSocket = io('http://localhost:8080', {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5
-    });
-
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      console.log('Connected to chat server');
-      setConnected(true);
-      addMessage('Welcome to Vegapunk Chat! I\'m ready to assist you.', 'bot');
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from chat server');
-      setConnected(false);
-    });
-
-    newSocket.on('chat-response', (data) => {
-      addMessage(data.response, 'bot');
-      setIsTyping(false);
-    });
-
-    newSocket.on('chat-stream', (data) => {
-      setCurrentStreamMessage(prev => prev + data.chunk);
-    });
-
-    newSocket.on('chat-complete', () => {
-      if (currentStreamMessage) {
-        addMessage(currentStreamMessage, 'bot');
-        setCurrentStreamMessage('');
-      }
-      setIsTyping(false);
-    });
-
-    newSocket.on('chat-error', (data) => {
-      addMessage(`Error: ${data.error}`, 'bot');
-      setIsTyping(false);
-      setCurrentStreamMessage('');
-    });
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, []);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, currentStreamMessage]);
-
-  const addMessage = (text: string, sender: 'user' | 'bot') => {
-    const message: Message = {
-      id: `${Date.now()}_${Math.random()}`,
-      text,
-      sender,
-      timestamp: new Date(),
-      isStreaming: false
-    };
-    setMessages(prev => [...prev, message]);
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleSendMessage = () => {
-    if (!currentMessage.trim() || !socket || !connected) return;
-
-    const messageText = currentMessage.trim();
-    addMessage(messageText, 'user');
-    setCurrentMessage('');
-    setIsTyping(true);
-
-    socket.emit('chat-message', { 
-      message: messageText,
-      streamMode: streamMode
-    });
+    if (!currentMessage.trim() || !connected) return;
+    sendMessage(currentMessage);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -133,8 +62,7 @@ export function ChatInterface() {
   };
 
   const handleClearChat = () => {
-    setMessages([]);
-    addMessage('Chat history cleared. How can I help you?', 'bot');
+    clearMessages();
   };
 
   const formatTime = (date: Date) => {

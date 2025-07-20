@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { createTheme } from '@mui/material/styles';
 import { Layout } from './components/Layout';
-import { VegapunkTheme } from './theme/VegapunkTheme';
+import { ChatProvider } from './contexts/ChatContext';
 
 // Pages
 import { HomePage } from './pages/HomePage';
@@ -17,22 +16,24 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
 
   return (
-    <Router>
-      <Layout 
-        darkMode={darkMode} 
-        onToggleDarkMode={() => setDarkMode(!darkMode)}
-      >
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/debug" element={<DebugOverviewPage />} />
-          <Route path="/ollama" element={<OllamaMonitorPage />} />
-          <Route path="/chat-logs" element={<ChatLogsPage />} />
-          <Route path="/websockets" element={<WebSocketMonitorPage />} />
-          <Route path="/errors" element={<ErrorMonitorPage />} />
-          <Route path="/performance" element={<PerformanceMetricsPage />} />
-        </Routes>
-      </Layout>
-    </Router>
+    <ChatProvider>
+      <Router>
+        <Layout 
+          darkMode={darkMode} 
+          onToggleDarkMode={() => setDarkMode(!darkMode)}
+        >
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/debug" element={<DebugOverviewPage />} />
+            <Route path="/ollama" element={<OllamaMonitorPage />} />
+            <Route path="/chat-logs" element={<ChatLogsPage />} />
+            <Route path="/websockets" element={<WebSocketMonitorPage />} />
+            <Route path="/errors" element={<ErrorMonitorPage />} />
+            <Route path="/performance" element={<PerformanceMetricsPage />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </ChatProvider>
   );
 }
 
