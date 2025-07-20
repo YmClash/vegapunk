@@ -24,6 +24,8 @@ import {
   Healing as HealingIcon,
   ShowChart as ChartIcon,
   Dashboard as DashboardIcon,
+  Psychology as PsychologyIcon,
+  AccountTree as EcosystemIcon,
   Brightness4 as DarkModeIcon,
   Brightness7 as LightModeIcon,
   GitHub as GitHubIcon
@@ -42,6 +44,8 @@ interface LayoutProps {
 
 const menuItems = [
   { path: '/', label: 'Home', icon: <HomeIcon />, description: 'Main Dashboard & Chat' },
+  { path: '/shaka', label: 'ShakaAgent', icon: <PsychologyIcon />, description: 'Ethics & Analysis Agent' },
+  { path: '/multi-agent-ecosystem', label: 'Multi-Agent Ecosystem', icon: <EcosystemIcon />, description: 'A2A + LangGraph + MCP Dashboard' },
   { path: '/debug', label: 'Debug Overview', icon: <DashboardIcon />, description: 'System Overview' },
   { path: '/ollama', label: 'Ollama Monitor', icon: <BotIcon />, description: 'LLM Service Status' },
   { path: '/chat-logs', label: 'Chat Logs', icon: <ChatIcon />, description: 'Message History' },
@@ -119,7 +123,7 @@ export function Layout({ children, darkMode, onToggleDarkMode }: LayoutProps) {
           Agentic AI System
         </Typography>
         <Typography variant="caption" color="text.secondary" display="block">
-          Phase 2: Debug Interface
+          Phase 8: ShakaAgent Integration
         </Typography>
       </Box>
     </Box>

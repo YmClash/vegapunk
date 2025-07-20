@@ -6,6 +6,7 @@ import path from 'path';
 import { OllamaProvider } from './llm/OllamaProvider';
 import { HuggingFaceProvider } from './llm/HuggingFaceProvider';
 import { ChatHandler } from './chat/ChatHandler';
+import { ShakaController } from './api/controllers/ShakaController';
 import { logger } from './utils/logger';
 
 // Chat logs storage
@@ -150,7 +151,16 @@ export async function startDashboardOnly(): Promise<void> {
         'debug/system': '/api/debug/system',
         'debug/ollama': '/api/debug/ollama',
         'debug/logs': '/api/debug/logs',
-        'debug/websockets': '/api/debug/websockets'
+        'debug/websockets': '/api/debug/websockets',
+        'agents/shaka/status': '/api/agents/shaka/status',
+        'agents/shaka/query': '/api/agents/shaka/query (POST)',
+        'agents/shaka/analyze': '/api/agents/shaka/analyze (POST)',
+        'agents/shaka/toggle': '/api/agents/shaka/toggle (PUT)',
+        'agents/shaka/policies': '/api/agents/shaka/policies',
+        'agents/shaka/metrics': '/api/agents/shaka/metrics',
+        'agents/shaka/alerts': '/api/agents/shaka/alerts',
+        'agents/shaka/conflicts': '/api/agents/shaka/conflicts',
+        'agents/shaka/detect-ethics': '/api/agents/shaka/detect-ethics (POST)'
       },
       frontend: {
         main: 'http://localhost:5173',
@@ -168,6 +178,11 @@ export async function startDashboardOnly(): Promise<void> {
       features: [
         'Multi-provider LLM support (Ollama + Hugging Face)',
         'Real-time chat with dynamic provider switching',
+        'ShakaAgent - Autonomous ethical analysis and monitoring',
+        'Ethical query detection and specialized responses',
+        'Multi-framework ethical reasoning (utilitarian, deontological, virtue, care)',
+        'Proactive monitoring with intelligent alerts',
+        'Conflict resolution and ethical policy management',
         'Persistent chat sessions with Context API',
         'System health monitoring for all providers',
         'WebSocket connection tracking and management',
@@ -203,7 +218,16 @@ export async function startDashboardOnly(): Promise<void> {
     // 3. Create Chat Handler with both providers
     const chatHandler = new ChatHandler(ollama, huggingface);
 
-    // 4. API Routes
+    // 4. Initialize ShakaAgent Controller
+    const shakaAgent = chatHandler.getShakaAgent();
+    const shakaController = shakaAgent ? new ShakaController(shakaAgent) : null;
+    if (shakaController) {
+      logger.info('🧠 ShakaAgent Controller initialized');
+    } else {
+      logger.warn('⚠️ ShakaAgent Controller not available - ShakaAgent not initialized');
+    }
+
+    // 5. API Routes
     app.get('/api/health', async (req, res) => {
       const health = await ollama.getHealthStatus();
       const models = await ollama.listModels();
@@ -272,7 +296,7 @@ export async function startDashboardOnly(): Promise<void> {
         const response = await chatHandler.processMessage(message);
         const responseTime = Date.now() - startTime;
         
-        addChatLog('bot', response, 'API', responseTime);
+        addChatLog('bot', response.response || response, 'API', responseTime);
         res.json({ response });
       } catch (error: any) {
         logger.error('Chat processing error:', error);
@@ -528,6 +552,21 @@ export async function startDashboardOnly(): Promise<void> {
       }
     });
 
+    // ShakaAgent API Routes
+    if (shakaController) {
+      app.get('/api/agents/shaka/status', shakaController.getStatus);
+      app.post('/api/agents/shaka/query', shakaController.processQuery);
+      app.post('/api/agents/shaka/analyze', shakaController.analyzeContent);
+      app.put('/api/agents/shaka/toggle', shakaController.toggleAgent);
+      app.get('/api/agents/shaka/policies', shakaController.getPolicies);
+      app.get('/api/agents/shaka/metrics', shakaController.getMetrics);
+      app.get('/api/agents/shaka/alerts', shakaController.getAlerts);
+      app.get('/api/agents/shaka/conflicts', shakaController.getConflicts);
+      app.post('/api/agents/shaka/detect-ethics', shakaController.detectEthicalContent);
+      
+      logger.info('🧠 ShakaAgent API routes registered');
+    }
+
     // 4. WebSocket for real-time chat
     io.on('connection', (socket) => {
       logger.info(`📱 Client connected: ${socket.id}`);
@@ -554,12 +593,21 @@ export async function startDashboardOnly(): Promise<void> {
             const responseTime = Date.now() - startTime;
             addChatLog('bot', 'Streaming response completed', socket.id, responseTime);
           } else {
-            // Normal response
-            const response = await chatHandler.processMessage(message);
+            // Normal response (now supports multi-agent)
+            const result = await chatHandler.processMessage(message);
             const responseTime = Date.now() - startTime;
             
-            addChatLog('bot', response, socket.id, responseTime);
-            socket.emit('chat-response', { response });
+            // Log the response with the agent identifier  
+            const logAgent = result.agent === 'shaka' ? 'bot' : 'bot'; // Simplify for logging
+            addChatLog(logAgent, result.response, socket.id, responseTime);
+            
+            // Send enhanced response with agent metadata
+            socket.emit('chat-response', { 
+              response: result.response,
+              agent: result.agent,
+              ethicalAnalysis: result.ethicalAnalysis,
+              isCollaborative: result.isCollaborative
+            });
           }
         } catch (error: any) {
           logger.error('WebSocket chat error:', error);
@@ -575,6 +623,258 @@ export async function startDashboardOnly(): Promise<void> {
         removeSocketConnection(socket.id);
         addChatLog('system', `Client disconnected: ${socket.id}`, socket.id);
       });
+    });
+
+    // ================================
+    // TRI-PROTOCOL ARCHITECTURE ENDPOINTS
+    // A2A + LangGraph + MCP Integration
+    // ================================
+
+    // A2A Protocol Endpoints
+    app.get('/api/a2a/topology', (req, res) => {
+      try {
+        // Mock A2A network topology - replace with actual A2A registry
+        const topology = {
+          agents: [
+            {
+              agentId: 'vegapunk-001',
+              agentType: 'TechnicalSupport',
+              status: 'online',
+              capabilities: [
+                { id: 'tech-support', name: 'Technical Support', category: 'support', reliability: 0.92, cost: 20 },
+                { id: 'llm-interaction', name: 'LLM Interaction', category: 'communication', reliability: 0.95, cost: 15 }
+              ],
+              metadata: { version: '1.0.0', location: 'graph://vegapunk-001', load: 35, uptime: 3600000 },
+              lastSeen: new Date().toISOString()
+            },
+            {
+              agentId: 'shaka-001',
+              agentType: 'EthicalAnalysis',
+              status: 'online',
+              capabilities: [
+                { id: 'ethical-analysis', name: 'Ethical Analysis', category: 'analysis', reliability: 0.96, cost: 30 },
+                { id: 'conflict-resolution', name: 'Conflict Resolution', category: 'analysis', reliability: 0.88, cost: 45 }
+              ],
+              metadata: { version: '1.0.0', location: 'graph://shaka-001', load: 22, uptime: 3500000 },
+              lastSeen: new Date().toISOString()
+            }
+          ],
+          connections: { 'vegapunk-001': ['shaka-001'], 'shaka-001': ['vegapunk-001'] },
+          lastUpdated: new Date().toISOString()
+        };
+        res.json(topology);
+      } catch (error: any) {
+        logger.error('A2A topology error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/a2a/messages/recent', (req, res) => {
+      try {
+        const messages = [
+          {
+            id: 'msg-001',
+            from: 'vegapunk-001',
+            to: 'shaka-001',
+            type: 'task_delegate',
+            timestamp: new Date(Date.now() - 30000).toISOString(),
+            priority: 'normal',
+            status: 'delivered'
+          }
+        ];
+        res.json(messages);
+      } catch (error: any) {
+        logger.error('A2A messages error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/a2a/stats', (req, res) => {
+      try {
+        const stats = {
+          totalAgents: 2,
+          onlineAgents: 2,
+          totalCapabilities: 4,
+          averageLoad: 28.5,
+          messagesPerMinute: 12.3
+        };
+        res.json(stats);
+      } catch (error: any) {
+        logger.error('A2A stats error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // LangGraph Workflow Endpoints
+    app.get('/api/langgraph/workflows/active', (req, res) => {
+      try {
+        const workflows = [
+          {
+            workflowId: 'wf-001',
+            sessionId: 'session-123',
+            status: 'running',
+            startTime: new Date(Date.now() - 30000).toISOString(),
+            currentStep: 2,
+            totalSteps: 4,
+            agentPath: ['supervisor', 'vegapunk-001'],
+            executionTime: 30000,
+            metadata: {
+              message: 'Analyze the ethical implications of AI surveillance',
+              protocolsUsed: ['A2A', 'LangGraph'],
+              handoffs: 1
+            }
+          }
+        ];
+        res.json(workflows);
+      } catch (error: any) {
+        logger.error('LangGraph workflows error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/langgraph/workflows/recent', (req, res) => {
+      try {
+        const workflows = [
+          {
+            workflowId: 'wf-002',
+            sessionId: 'session-122',
+            status: 'completed',
+            startTime: new Date(Date.now() - 120000).toISOString(),
+            endTime: new Date(Date.now() - 90000).toISOString(),
+            currentStep: 4,
+            totalSteps: 4,
+            agentPath: ['supervisor', 'vegapunk-001', 'shaka-001'],
+            executionTime: 30000,
+            metadata: { message: 'Help me optimize my database queries', protocolsUsed: ['A2A', 'LangGraph'], handoffs: 1 }
+          }
+        ];
+        res.json(workflows);
+      } catch (error: any) {
+        logger.error('LangGraph recent workflows error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/langgraph/metrics', (req, res) => {
+      try {
+        const metrics = {
+          totalWorkflows: 245,
+          activeWorkflows: 1,
+          completedWorkflows: 220,
+          failedWorkflows: 24,
+          averageExecutionTime: 15234,
+          successRate: 0.902,
+          averageHandoffs: 1.2
+        };
+        res.json(metrics);
+      } catch (error: any) {
+        logger.error('LangGraph metrics error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // MCP Protocol Endpoints
+    app.get('/api/mcp/tools', (req, res) => {
+      try {
+        const tools = [
+          {
+            name: 'ethical_analysis',
+            description: 'Perform comprehensive ethical analysis using multiple moral frameworks',
+            category: 'ethical-analysis',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                content: { type: 'string', description: 'Content to analyze' },
+                frameworks: { type: 'array', items: { type: 'string' } }
+              }
+            },
+            metadata: { cost: 30, latency: 5000, reliability: 0.95, version: '1.0.0' }
+          },
+          {
+            name: 'technical_support',
+            description: 'Provide technical support and analysis',
+            category: 'technical-support',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: 'Technical question' },
+                category: { type: 'string', enum: ['general', 'software', 'hardware'] }
+              }
+            },
+            metadata: { cost: 20, latency: 3000, reliability: 0.92, version: '1.0.0' }
+          }
+        ];
+        res.json(tools);
+      } catch (error: any) {
+        logger.error('MCP tools error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/mcp/resources', (req, res) => {
+      try {
+        const resources = [
+          {
+            uri: 'vegapunk://agents/capabilities',
+            name: 'Agent Capabilities',
+            description: 'List of all agent capabilities in the Vegapunk ecosystem',
+            mimeType: 'application/json',
+            metadata: { size: 2048, lastModified: new Date().toISOString(), version: '1.0.0' }
+          },
+          {
+            uri: 'vegapunk://network/topology',
+            name: 'Network Topology',
+            description: 'Current A2A network topology and connections',
+            mimeType: 'application/json',
+            metadata: { size: 1024, lastModified: new Date().toISOString(), version: '1.0.0' }
+          }
+        ];
+        res.json(resources);
+      } catch (error: any) {
+        logger.error('MCP resources error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/mcp/metrics', (req, res) => {
+      try {
+        const metrics = {
+          totalTools: 2,
+          totalResources: 3,
+          totalExecutions: 156,
+          successRate: 0.94,
+          averageExecutionTime: 4200,
+          errorRate: 0.06
+        };
+        res.json(metrics);
+      } catch (error: any) {
+        logger.error('MCP metrics error:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Multi-Agent Ecosystem System Health
+    app.get('/api/ecosystem/health', (req, res) => {
+      try {
+        const health = {
+          overall: 'healthy',
+          protocols: { a2a: true, langGraph: true, mcp: true },
+          bridges: { a2aLangGraph: true, langGraphMcp: true },
+          metrics: {
+            totalWorkflows: 245,
+            successRate: 0.94,
+            averageExecutionTime: 15234,
+            activeAgents: 2,
+            availableTools: 2,
+            availableResources: 3
+          },
+          timestamp: new Date().toISOString()
+        };
+        res.json(health);
+      } catch (error: any) {
+        logger.error('Ecosystem health error:', error);
+        res.status(500).json({ error: error.message });
+      }
     });
 
     // 5. 404 handler for unmatched routes

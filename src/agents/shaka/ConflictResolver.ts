@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { EventEmitter } from 'events';
 import { createLogger } from '@utils/logger';
 import type { LLMProvider } from '@utils/llm/LLMProvider';
 import type { EthicalPolicy, EthicalContext } from './EthicalPolicyEngine';
@@ -48,7 +49,7 @@ export interface ConflictPattern {
   successRate: number;
 }
 
-export class ConflictResolver {
+export class ConflictResolver extends EventEmitter {
   private readonly logger = createLogger('ConflictResolver');
   private readonly llmProvider: LLMProvider;
   
@@ -58,6 +59,7 @@ export class ConflictResolver {
   private conflictPatterns: Map<string, ConflictPattern> = new Map();
 
   constructor(llmProvider: LLMProvider) {
+    super();
     this.llmProvider = llmProvider;
     
     this.logger.info('Conflict Resolver initialized');

@@ -1,12 +1,22 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+interface EthicalAnalysis {
+  compliance: number;
+  concerns: number;
+  recommendations: number;
+  processingTime: number;
+  framework?: string;
+}
+
 interface ChatMessage {
   id: string;
   text: string;
-  sender: 'user' | 'bot';
+  sender: 'user' | 'vegapunk' | 'shaka';
   timestamp: Date;
   isStreaming?: boolean;
+  ethicalAnalysis?: EthicalAnalysis;
+  isCollaborative?: boolean; // Indique si c'est une collaboration entre agents
 }
 
 interface ChatContextType {
@@ -38,14 +48,16 @@ export function ChatProvider({ children }: ChatProviderProps) {
   const [currentStreamMessage, setCurrentStreamMessage] = useState('');
   const socketRef = useRef<Socket | null>(null);
 
-  // Fonction pour ajouter un message
-  const addMessage = (text: string, sender: 'user' | 'bot') => {
+  // Fonction pour ajouter un message (étendue pour multi-agents)
+  const addMessage = (text: string, sender: 'user' | 'vegapunk' | 'shaka', ethicalAnalysis?: EthicalAnalysis, isCollaborative?: boolean) => {
     const message: ChatMessage = {
       id: `${Date.now()}_${Math.random()}`,
       text,
       sender,
       timestamp: new Date(),
-      isStreaming: false
+      isStreaming: false,
+      ethicalAnalysis,
+      isCollaborative
     };
     setMessages(prev => [...prev, message]);
   };
@@ -68,7 +80,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
   // Fonction pour vider les messages
   const clearMessages = () => {
     setMessages([]);
-    addMessage('Chat history cleared. How can I help you?', 'bot');
+    addMessage('Chat history cleared. How can I help you?', 'vegapunk');
   };
 
   // Connexion WebSocket (uniquement au mount initial)
@@ -99,8 +111,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
         if (prev.length === 0) {
           return [{
             id: `welcome_${Date.now()}`,
-            text: 'Welcome to Vegapunk Chat! I\'m ready to assist you.',
-            sender: 'bot' as const,
+            text: 'Welcome to Vegapunk Chat! I\'m Vegapunk, your AI assistant for technical and scientific support. How can I help you?',
+            sender: 'vegapunk' as const,
             timestamp: new Date(),
             isStreaming: false
           }];
@@ -115,7 +127,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
     });
 
     newSocket.on('chat-response', (data) => {
-      addMessage(data.response, 'bot');
+      addMessage(data.response, data.agent || 'vegapunk', data.ethicalAnalysis, data.isCollaborative);
       setIsTyping(false);
     });
 
@@ -126,7 +138,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
     newSocket.on('chat-complete', () => {
       setCurrentStreamMessage(current => {
         if (current) {
-          addMessage(current, 'bot');
+          addMessage(current, 'vegapunk');
           return '';
         }
         return current;
@@ -135,7 +147,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
     });
 
     newSocket.on('chat-error', (data) => {
-      addMessage(`Error: ${data.error}`, 'bot');
+      addMessage(`Error: ${data.error}`, 'vegapunk');
       setIsTyping(false);
       setCurrentStreamMessage('');
     });
