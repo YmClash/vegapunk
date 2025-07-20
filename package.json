@@ -60,6 +60,7 @@
     "typescript": "^5.4.3"
   },
   "dependencies": {
+    "@huggingface/inference": "^2.8.1",
     "@langchain/community": "^0.0.53",
     "@langchain/core": "^0.1.61",
     "@mistralai/mistralai": "^0.4.0",

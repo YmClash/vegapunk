@@ -139,6 +139,13 @@ export async function startDashboardOnly(): Promise<void> {
         'models/switch': '/api/models/switch (POST)',
         'models/current': '/api/models/current',
         
+        // Provider Management (NEW)
+        'providers/current': '/api/providers/current',
+        'providers/switch': '/api/providers/switch (POST)',
+        'providers/status': '/api/providers/status',
+        'providers/models': '/api/providers/{provider}/models',
+        'providers/model-switch': '/api/providers/{provider}/models/switch (POST)',
+        
         // Debug & Monitoring
         'debug/system': '/api/debug/system',
         'debug/ollama': '/api/debug/ollama',
@@ -159,13 +166,16 @@ export async function startDashboardOnly(): Promise<void> {
       },
       websocket: 'ws://localhost:8080',
       features: [
-        'Real-time chat with Ollama LLM',
-        'Dynamic model switching',
-        'System health monitoring',
-        'WebSocket connection tracking',
-        'Chat logs with filtering',
+        'Multi-provider LLM support (Ollama + Hugging Face)',
+        'Real-time chat with dynamic provider switching',
+        'Persistent chat sessions with Context API',
+        'System health monitoring for all providers',
+        'WebSocket connection tracking and management',
+        'Chat logs with advanced filtering',
         'Performance metrics visualization',
-        'Error monitoring and recovery'
+        'Error monitoring and automatic recovery',
+        'Environment-based configuration management',
+        'Provider status monitoring and fallback'
       ]
     });
   });
@@ -186,6 +196,7 @@ export async function startDashboardOnly(): Promise<void> {
       logger.info('✅ Hugging Face provider initialized');
     } catch (error: any) {
       logger.warn('⚠️ Hugging Face provider initialization failed:', error.message);
+      logger.error('Full error details:', error);
       logger.info('Continuing without Hugging Face support');
     }
 
@@ -416,6 +427,62 @@ export async function startDashboardOnly(): Promise<void> {
         res.json(status);
       } catch (error: any) {
         logger.error('Failed to get provider status:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get('/api/providers/:provider/models', async (req, res) => {
+      try {
+        const { provider } = req.params;
+        
+        if (provider === 'ollama') {
+          const models = await ollama.listModels();
+          res.json({ provider: 'ollama', models });
+        } else if (provider === 'huggingface' && huggingface) {
+          const models = await huggingface.listModels();
+          res.json({ provider: 'huggingface', models });
+        } else {
+          res.status(404).json({ error: `Provider ${provider} not found or not available` });
+        }
+      } catch (error: any) {
+        logger.error(`Failed to get models for provider ${req.params.provider}:`, error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.post('/api/providers/:provider/models/switch', async (req, res) => {
+      try {
+        const { provider } = req.params;
+        const { modelName } = req.body;
+        
+        if (!modelName) {
+          return res.status(400).json({ error: 'Model name is required' });
+        }
+        
+        if (provider === 'ollama') {
+          await ollama.setModel(modelName);
+          addChatLog('system', `Ollama model switched to: ${modelName}`);
+          res.json({ 
+            success: true, 
+            provider: 'ollama',
+            currentModel: ollama.getCurrentModel(),
+            message: `Switched to Ollama model: ${modelName}`
+          });
+        } else if (provider === 'huggingface' && huggingface) {
+          await huggingface.setModel(modelName);
+          addChatLog('system', `Hugging Face model switched to: ${modelName}`);
+          res.json({ 
+            success: true, 
+            provider: 'huggingface',
+            currentModel: huggingface.getCurrentModel(),
+            message: `Switched to Hugging Face model: ${modelName}`
+          });
+        } else {
+          res.status(404).json({ error: `Provider ${provider} not found or not available` });
+        }
+      } catch (error: any) {
+        logger.error(`Failed to switch model for provider ${req.params.provider}:`, error);
+        addChatLog('error', `Failed to switch ${req.params.provider} model: ${error.message}`);
         res.status(500).json({ error: error.message });
       }
     });

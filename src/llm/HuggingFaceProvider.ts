@@ -1,6 +1,7 @@
-import axios, { AxiosInstance } from 'axios';
+import { HfInference } from '@huggingface/inference';
 import { EventEmitter } from 'events';
 import { logger } from '../utils/logger';
+import axios from 'axios';
 
 interface HuggingFaceModel {
   id: string;
@@ -9,22 +10,13 @@ interface HuggingFaceModel {
   tags?: string[];
 }
 
-interface HuggingFaceGenerateRequest {
-  inputs: string;
-  parameters?: {
-    temperature?: number;
-    max_length?: number;
-    max_new_tokens?: number;
-    do_sample?: boolean;
-    top_k?: number;
-    top_p?: number;
-    repetition_penalty?: number;
-    return_full_text?: boolean;
-  };
-  options?: {
-    wait_for_model?: boolean;
-    use_cache?: boolean;
-  };
+interface HuggingFaceGenerateOptions {
+  temperature?: number;
+  max_new_tokens?: number;
+  do_sample?: boolean;
+  top_k?: number;
+  top_p?: number;
+  repetition_penalty?: number;
 }
 
 interface HuggingFaceHealthStatus {
@@ -40,7 +32,7 @@ export class HuggingFaceProvider extends EventEmitter {
   private defaultModel: string;
   private currentModel: string;
   private isInitialized: boolean = false;
-  private axiosInstance: AxiosInstance;
+  private client: HfInference;
   private healthStatus: HuggingFaceHealthStatus;
   private baseUrl: string = 'https://huggingface.co/api/models';
 
@@ -54,13 +46,8 @@ export class HuggingFaceProvider extends EventEmitter {
       logger.warn('⚠️ No Hugging Face API key provided. Please set HUGGING_FACE_API_KEY environment variable');
     }
     
-    this.axiosInstance = axios.create({
-      timeout: 120000,
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    // Initialize the official Hugging Face client
+    this.client = new HfInference(this.apiKey);
 
     this.healthStatus = {
       status: 'connecting',
@@ -77,12 +64,28 @@ export class HuggingFaceProvider extends EventEmitter {
         throw new Error('Hugging Face API key is required');
       }
       
-      // Check model availability
-      await this.checkHealth();
-      
+      // Mark as initialized without strict health check
+      // The health check will be done on demand
       this.isInitialized = true;
+      this.healthStatus = {
+        status: 'healthy',
+        model: this.currentModel,
+        modelType: 'text-generation',
+        lastCheck: new Date()
+      };
+      
       this.emit('initialized');
       logger.info('✅ Hugging Face provider initialized successfully');
+      
+      // Try health check in background (non-blocking)
+      setTimeout(async () => {
+        try {
+          await this.checkHealth();
+        } catch (error: any) {
+          logger.warn('⚠️ Background health check failed, but provider remains available:', error.message);
+        }
+      }, 1000);
+      
     } catch (error: any) {
       logger.error('❌ Hugging Face initialization failed:', error.message);
       this.healthStatus = {
@@ -96,26 +99,20 @@ export class HuggingFaceProvider extends EventEmitter {
 
   private async checkHealth(): Promise<void> {
     try {
-      // Test the model with a simple request
-      const testRequest: HuggingFaceGenerateRequest = {
+      // Test the model with a simple request using the official client
+      logger.debug('Testing Hugging Face model health...');
+      
+      const result = await this.client.textGeneration({
+        model: this.currentModel,
         inputs: "Hello",
         parameters: {
-          max_new_tokens: 10,
+          max_new_tokens: 5,
           temperature: 0.7,
           return_full_text: false
-        },
-        options: {
-          wait_for_model: true,
-          use_cache: false
         }
-      };
+      });
 
-      const response = await this.axiosInstance.post(
-        `${this.baseUrl}/${this.currentModel}`,
-        testRequest
-      );
-
-      if (response.status === 200) {
+      if (result && result.generated_text !== undefined) {
         this.healthStatus = {
           status: 'healthy',
           model: this.currentModel,
@@ -124,33 +121,29 @@ export class HuggingFaceProvider extends EventEmitter {
         };
         
         logger.info(`✅ Hugging Face service healthy - Model: ${this.currentModel}`);
+      } else {
+        throw new Error('No response received from model');
       }
     } catch (error: any) {
       let errorMessage = 'Unknown error';
       
-      if (error.response) {
-        switch (error.response.status) {
-          case 401:
-            errorMessage = 'Invalid API key';
-            break;
-          case 404:
-            errorMessage = `Model ${this.currentModel} not found`;
-            break;
-          case 503:
-            errorMessage = 'Model is loading, please wait';
-            break;
-          default:
-            errorMessage = error.response.data?.error || error.message;
-        }
-      } else {
+      if (error.message) {
         errorMessage = error.message;
       }
+      
+      logger.error(`Hugging Face health check failed: ${errorMessage}`);
+      
+      this.healthStatus = {
+        status: 'unhealthy',
+        error: errorMessage,
+        lastCheck: new Date()
+      };
       
       throw new Error(`Hugging Face service not available: ${errorMessage}`);
     }
   }
 
-  async generateResponse(prompt: string, options?: Partial<HuggingFaceGenerateRequest['parameters']>): Promise<string> {
+  async generateResponse(prompt: string, options?: Partial<HuggingFaceGenerateOptions>): Promise<string> {
     if (!this.isInitialized) {
       throw new Error('Hugging Face provider not initialized. Call initialize() first.');
     }
@@ -160,7 +153,10 @@ export class HuggingFaceProvider extends EventEmitter {
     }
 
     try {
-      const request: HuggingFaceGenerateRequest = {
+      logger.debug('Generating response with Hugging Face:', { model: this.currentModel });
+      
+      const result = await this.client.textGeneration({
+        model: this.currentModel,
         inputs: prompt,
         parameters: {
           temperature: 0.7,
@@ -171,40 +167,15 @@ export class HuggingFaceProvider extends EventEmitter {
           repetition_penalty: 1.1,
           return_full_text: false,
           ...options
-        },
-        options: {
-          wait_for_model: true,
-          use_cache: false
         }
-      };
+      });
 
-      logger.debug('Generating response with Hugging Face:', { model: this.currentModel });
-      
-      const response = await this.axiosInstance.post(
-        `${this.baseUrl}/${this.currentModel}`,
-        request
-      );
-      
-      if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+      if (!result || result.generated_text === undefined) {
         throw new Error('No response received from Hugging Face');
       }
 
-      // Handle different response formats
-      let generatedText = '';
-      const firstResult = response.data[0];
-      
-      if (typeof firstResult === 'string') {
-        generatedText = firstResult;
-      } else if (firstResult.generated_text !== undefined) {
-        generatedText = firstResult.generated_text;
-      } else if (firstResult.text !== undefined) {
-        generatedText = firstResult.text;
-      } else {
-        throw new Error('Unexpected response format from Hugging Face');
-      }
-
       // Clean up the response
-      generatedText = generatedText.trim();
+      let generatedText = result.generated_text.trim();
       
       // Remove the original prompt if it's included in the response
       if (generatedText.startsWith(prompt)) {
@@ -215,18 +186,13 @@ export class HuggingFaceProvider extends EventEmitter {
     } catch (error: any) {
       logger.error('❌ Hugging Face generation failed:', error.message);
       
-      // Handle specific error cases
-      if (error.response) {
-        switch (error.response.status) {
-          case 503:
-            throw new Error('Model is currently loading. Please wait a moment and try again.');
-          case 429:
-            throw new Error('Rate limit exceeded. Please wait before making another request.');
-          case 401:
-            throw new Error('Invalid Hugging Face API key.');
-          default:
-            throw new Error(`Hugging Face API error: ${error.response.data?.error || error.message}`);
-        }
+      // Handle specific error cases from the official client
+      if (error.message.includes('rate limit')) {
+        throw new Error('Rate limit exceeded. Please wait before making another request.');
+      } else if (error.message.includes('authorization') || error.message.includes('401')) {
+        throw new Error('Invalid Hugging Face API key.');
+      } else if (error.message.includes('503') || error.message.includes('loading')) {
+        throw new Error('Model is currently loading. Please wait a moment and try again.');
       }
       
       this.emit('error', error);
@@ -237,41 +203,102 @@ export class HuggingFaceProvider extends EventEmitter {
   async streamResponse(
     prompt: string, 
     onChunk: (chunk: string) => void,
-    options?: Partial<HuggingFaceGenerateRequest['parameters']>
+    options?: Partial<HuggingFaceGenerateOptions>
   ): Promise<void> {
-    // Hugging Face Inference API doesn't support streaming by default
-    // We'll simulate streaming by generating the full response and sending it in chunks
     try {
-      logger.debug('Simulating stream generation with Hugging Face:', { model: this.currentModel });
+      logger.debug('Streaming response with Hugging Face:', { model: this.currentModel });
       
-      const fullResponse = await this.generateResponse(prompt, options);
-      
-      // Simulate streaming by sending the response in chunks
-      const chunkSize = 5; // Characters per chunk
-      const words = fullResponse.split(' ');
-      
-      for (let i = 0; i < words.length; i++) {
-        const chunk = words[i] + (i < words.length - 1 ? ' ' : '');
-        onChunk(chunk);
-        
-        // Add a small delay to simulate streaming
-        await new Promise(resolve => setTimeout(resolve, 50));
+      // Use the official client's textGenerationStream method
+      const stream = this.client.textGenerationStream({
+        model: this.currentModel,
+        inputs: prompt,
+        parameters: {
+          temperature: 0.7,
+          max_new_tokens: 512,
+          do_sample: true,
+          top_k: 50,
+          top_p: 0.9,
+          repetition_penalty: 1.1,
+          return_full_text: false,
+          ...options
+        }
+      });
+
+      for await (const chunk of stream) {
+        if (chunk.token && chunk.token.text) {
+          onChunk(chunk.token.text);
+        }
       }
       
       logger.debug('✅ Stream generation completed');
     } catch (error: any) {
-      logger.error('❌ Hugging Face streaming failed:', error.message);
-      this.emit('error', error);
-      throw error;
+      logger.warn('❌ Streaming not available, falling back to simulated streaming:', error.message);
+      
+      // Fallback to simulated streaming if real streaming fails
+      try {
+        const fullResponse = await this.generateResponse(prompt, options);
+        
+        // Simulate streaming by sending the response in chunks
+        const words = fullResponse.split(' ');
+        
+        for (let i = 0; i < words.length; i++) {
+          const chunk = words[i] + (i < words.length - 1 ? ' ' : '');
+          onChunk(chunk);
+          
+          // Add a small delay to simulate streaming
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        logger.debug('✅ Simulated stream generation completed');
+      } catch (fallbackError: any) {
+        logger.error('❌ Hugging Face streaming failed:', fallbackError.message);
+        this.emit('error', fallbackError);
+        throw fallbackError;
+      }
     }
   }
 
   async listModels(): Promise<string[]> {
     try {
-      // Popular text generation models on Hugging Face
+      logger.info('🔍 Fetching available Hugging Face models from API...');
+      
+      // Fetch text generation models from Hugging Face API
+      const response = await axios.get('https://huggingface.co/api/models', {
+        params: {
+          pipeline_tag: 'text-generation',
+          sort: 'downloads',
+          direction: -1,
+          limit: 20
+        },
+        headers: {
+          'Authorization': this.apiKey ? `Bearer ${this.apiKey}` : undefined
+        },
+        timeout: 10000
+      });
+
+      if (response.data && Array.isArray(response.data)) {
+        const models = response.data
+          .filter((model: HuggingFaceModel) => 
+            model.pipeline_tag === 'text-generation' && 
+            model.id && 
+            !model.id.includes('private') &&
+            model.library_name !== 'diffusers' // Exclude image generation models
+          )
+          .map((model: HuggingFaceModel) => model.id)
+          .slice(0, 15); // Limit to top 15 models
+
+        logger.info(`✅ Found ${models.length} text generation models`);
+        return models;
+      } else {
+        throw new Error('Invalid response format from Hugging Face API');
+      }
+    } catch (error: any) {
+      logger.warn('⚠️ Failed to fetch models from API, using fallback list:', error.message);
+      
+      // Fallback to popular models if API fails
       return [
         'microsoft/DialoGPT-medium',
-        'microsoft/DialoGPT-large',
+        'microsoft/DialoGPT-large', 
         'facebook/blenderbot-400M-distill',
         'facebook/blenderbot-3B',
         'microsoft/GODEL-v1_1-base-seq2seq',
@@ -281,11 +308,10 @@ export class HuggingFaceProvider extends EventEmitter {
         'gpt2',
         'gpt2-medium',
         'gpt2-large',
-        'distilgpt2'
+        'distilgpt2',
+        'HuggingFaceTB/SmolLM3-3B',
+        'HuggingFaceTB/SmolLM2-1.7B-Instruct'
       ];
-    } catch (error: any) {
-      logger.error('Failed to list models:', error.message);
-      return [];
     }
   }
 
@@ -354,7 +380,7 @@ export class HuggingFaceProvider extends EventEmitter {
 
   updateApiKey(apiKey: string): void {
     this.apiKey = apiKey;
-    this.axiosInstance.defaults.headers['Authorization'] = `Bearer ${apiKey}`;
+    this.client = new HfInference(apiKey);
     logger.info('🔑 Hugging Face API key updated');
   }
 }

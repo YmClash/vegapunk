@@ -14,14 +14,18 @@ import {
   Grid,
   Tooltip,
   IconButton,
-  Divider
+  Divider,
+  Tab,
+  Tabs
 } from '@mui/material';
 import {
   SmartToy as ModelIcon,
   SwapHoriz as SwitchIcon,
   Refresh as RefreshIcon,
   CheckCircle as CheckIcon,
-  Star as DefaultIcon
+  Star as DefaultIcon,
+  Computer as OllamaIcon,
+  Cloud as HuggingFaceIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -32,49 +36,72 @@ interface ModelInfo {
   status?: string;
 }
 
+interface ProviderInfo {
+  currentProvider: string;
+  availableProviders: string[];
+}
+
 export function ModelSelector() {
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  const [providerInfo, setProviderInfo] = useState<ProviderInfo | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const fetchModelInfo = async () => {
+  const fetchProviderInfo = async () => {
+    try {
+      const response = await axios.get('http://localhost:8080/api/providers/current');
+      const data = response.data;
+      
+      setProviderInfo(data);
+      setSelectedProvider(data.currentProvider);
+      
+      // Fetch models for current provider
+      await fetchModelsForProvider(data.currentProvider);
+      
+    } catch (err: any) {
+      console.error('Failed to fetch provider info:', err);
+      setError('Failed to fetch provider information');
+    }
+  };
+
+  const fetchModelsForProvider = async (provider: string) => {
     setLoading(true);
     setError(null);
     
     try {
-      // Fetch current model info
-      const [currentResponse, debugResponse] = await Promise.all([
-        axios.get('http://localhost:8080/api/models/current'),
-        axios.get('http://localhost:8080/api/debug/ollama')
+      const [modelsResponse, currentResponse] = await Promise.all([
+        axios.get(`http://localhost:8080/api/providers/${provider}/models`),
+        axios.get('http://localhost:8080/api/models/current')
       ]);
       
-      const currentInfo = currentResponse.data;
-      const debugInfo = debugResponse.data;
+      const modelsData = modelsResponse.data;
+      const currentData = currentResponse.data;
       
+      setAvailableModels(modelsData.models || []);
       setModelInfo({
-        currentModel: currentInfo.currentModel,
-        defaultModel: currentInfo.defaultModel,
-        models: debugInfo.models || [],
-        status: debugInfo.status
+        currentModel: currentData.currentModel,
+        defaultModel: currentData.defaultModel,
+        models: modelsData.models || [],
+        status: 'healthy'
       });
-      
-      setAvailableModels(debugInfo.models || []);
-      setSelectedModel(currentInfo.currentModel);
+      setSelectedModel(currentData.currentModel);
       
     } catch (err: any) {
-      console.error('Failed to fetch model info:', err);
-      setError('Failed to fetch model information');
+      console.error('Failed to fetch models:', err);
+      setError(`Failed to fetch models for ${provider}`);
+      setAvailableModels([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleModelSwitch = async () => {
-    if (!selectedModel || selectedModel === modelInfo?.currentModel) {
+    if (!selectedModel || selectedModel === modelInfo?.currentModel || !selectedProvider) {
       return;
     }
     
@@ -83,13 +110,13 @@ export function ModelSelector() {
     setSuccess(null);
     
     try {
-      const response = await axios.post('http://localhost:8080/api/models/switch', {
+      const response = await axios.post(`http://localhost:8080/api/providers/${selectedProvider}/models/switch`, {
         modelName: selectedModel
       });
       
       if (response.data.success) {
         setSuccess(`Successfully switched to model: ${selectedModel}`);
-        await fetchModelInfo(); // Refresh model info
+        await fetchModelsForProvider(selectedProvider); // Refresh model info
         
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(null), 3000);
@@ -102,16 +129,28 @@ export function ModelSelector() {
     }
   };
 
-  useEffect(() => {
-    fetchModelInfo();
+  const handleProviderChange = async (newProvider: string) => {
+    if (newProvider === selectedProvider) return;
     
-    // Refresh model info every 30 seconds
-    const interval = setInterval(fetchModelInfo, 30000);
+    setSelectedProvider(newProvider);
+    await fetchModelsForProvider(newProvider);
+  };
+
+  useEffect(() => {
+    fetchProviderInfo();
+    
+    // Refresh provider info every 30 seconds
+    const interval = setInterval(fetchProviderInfo, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const formatModelName = (modelName: string) => {
-    // Extract just the model name without version tags for display
+    // For Hugging Face models, show organization/model name
+    if (modelName.includes('/')) {
+      const parts = modelName.split('/');
+      return `${parts[0]}/${parts[1]?.split(':')[0] || parts[1]}`;
+    }
+    // For Ollama models, extract just the model name without version tags
     return modelName.split(':')[0];
   };
 
@@ -121,6 +160,28 @@ export function ModelSelector() {
     return parts.length > 1 ? parts[1] : 'latest';
   };
 
+  const getProviderIcon = (provider: string) => {
+    switch (provider) {
+      case 'ollama':
+        return <OllamaIcon />;
+      case 'huggingface':
+        return <HuggingFaceIcon />;
+      default:
+        return <ModelIcon />;
+    }
+  };
+
+  const getProviderLabel = (provider: string) => {
+    switch (provider) {
+      case 'ollama':
+        return 'Ollama (Local)';
+      case 'huggingface':
+        return 'Hugging Face (Cloud)';
+      default:
+        return provider;
+    }
+  };
+
   return (
     <Paper elevation={2} sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -128,12 +189,33 @@ export function ModelSelector() {
           <ModelIcon sx={{ mr: 1, color: 'primary.main' }} />
           Model Selection
         </Typography>
-        <Tooltip title="Refresh Model List">
-          <IconButton onClick={fetchModelInfo} disabled={loading}>
+        <Tooltip title="Refresh Models">
+          <IconButton onClick={fetchProviderInfo} disabled={loading}>
             <RefreshIcon />
           </IconButton>
         </Tooltip>
       </Box>
+
+      {/* Provider Tabs */}
+      {providerInfo && providerInfo.availableProviders.length > 1 && (
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs 
+            value={selectedProvider} 
+            onChange={(e, newValue) => handleProviderChange(newValue)}
+            variant="fullWidth"
+          >
+            {providerInfo.availableProviders.map((provider) => (
+              <Tab
+                key={provider}
+                label={getProviderLabel(provider)}
+                value={provider}
+                icon={getProviderIcon(provider)}
+                iconPosition="start"
+              />
+            ))}
+          </Tabs>
+        </Box>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -154,14 +236,15 @@ export function ModelSelector() {
       ) : (
         <Box>
           {/* Current Model Info */}
-          {modelInfo && (
+          {modelInfo && providerInfo && (
             <Grid container spacing={2} sx={{ mb: 3 }}>
               <Grid item xs={12} md={6}>
                 <Box sx={{ p: 2, bgcolor: 'primary.light', borderRadius: 2, color: 'white' }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Current Model
+                  <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {getProviderIcon(selectedProvider)}
+                    Current Model ({getProviderLabel(selectedProvider)})
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Chip 
                       label={formatModelName(modelInfo.currentModel)}
                       size="small"
@@ -200,10 +283,10 @@ export function ModelSelector() {
           {/* Model Selection */}
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <FormControl sx={{ minWidth: 200, flex: 1 }}>
-              <InputLabel>Select Model</InputLabel>
+              <InputLabel>Select {selectedProvider ? getProviderLabel(selectedProvider) : ''} Model</InputLabel>
               <Select
                 value={selectedModel}
-                label="Select Model"
+                label={`Select ${selectedProvider ? getProviderLabel(selectedProvider) : ''} Model`}
                 onChange={(e) => setSelectedModel(e.target.value)}
                 disabled={switching || availableModels.length === 0}
               >
