@@ -4,9 +4,9 @@
  */
 
 import { EventEmitter } from 'events';
-import { A2AProtocol } from '../a2a/A2AProtocol';
-import { VegapunkAgentGraph } from '../graph/VegapunkAgentGraph';
-import { VegapunkMCPServer } from '../mcp/VegapunkMCPServer';
+import { A2AProtocol } from '@/a2a';
+import { VegapunkAgentGraph } from '@/graph';
+import { VegapunkMCPServer } from '@/mcp';
 import { A2ALangGraphBridge } from './A2ALangGraphBridge';
 import { LangGraphMCPBridge } from './LangGraphMCPBridge';
 
