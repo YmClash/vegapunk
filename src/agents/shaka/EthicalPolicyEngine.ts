@@ -294,7 +294,7 @@ export class EthicalPolicyEngine {
     Care ethics score (0-100) and key reasoning points.
     `;
 
-    const response = await this.llmProvider.generate(prompt, {
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.3,
     });
 
@@ -368,9 +368,7 @@ export class EthicalPolicyEngine {
     Rate compliance (0-100) and provide brief reasoning.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Evaluate ethical compliance objectively. Provide score and reasoning.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.2,
     });
 
@@ -456,9 +454,7 @@ export class EthicalPolicyEngine {
     Provide 3-5 specific, actionable recommendations to address these concerns.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Provide practical, specific ethical recommendations.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.4,
     });
 
@@ -485,9 +481,7 @@ export class EthicalPolicyEngine {
     Provide a clear, concise explanation of the overall ethical assessment.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Synthesize ethical analysis into clear, accessible reasoning.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.3,
     });
 

@@ -1,31 +1,27 @@
 /**
- * Shaka Agent - Ethics and Analysis Specialist
- * The first fully autonomous agent implementing the Vegapunk architecture
- * Specializes in ethical reasoning, conflict resolution, and proactive monitoring
+ * Shaka Agent - Ethical Analysis & Monitoring
+ * Advanced ethical agent providing comprehensive moral analysis and monitoring
+ * Integrates with multi-agent ecosystem via A2A + LangGraph + MCP protocols
  */
 
-import { AgenticSatellite } from '@agents/base/AgenticSatellite';
-import { LLMProviderFactory, type LLMProvider } from '@utils/llm/LLMProvider';
-import { EthicalPolicyEngine, type EthicalContext, type EthicalAnalysis } from './EthicalPolicyEngine';
-import { ConflictResolver, type Conflict } from './ConflictResolver';
-import { ProactiveMonitor, type MonitorAlert } from './ProactiveMonitor';
-import type {
-  AgentConfig,
-  AgentGuardrails,
-  AgentState,
-  DecisionResult,
-  DecisionOption,
-  ToolResult,
-  Goal,
-} from '@interfaces/base.types';
-import type { AgenticCapabilities } from '@interfaces/capabilities.types';
+import { EventEmitter } from 'events';
 import { createLogger } from '@utils/logger';
+import type { OllamaProvider } from '@/llm/OllamaProvider';
+import type { HuggingFaceProvider } from '@/llm/HuggingFaceProvider';
+import { EthicalPolicyEngine, type EthicalContext, type EthicalAnalysis } from './EthicalPolicyEngine';
+import { ProactiveMonitor, type MonitorAlert } from './ProactiveMonitor';
+import { ConflictResolver, type Conflict } from './ConflictResolver';
 
-export interface ShakaConfig extends AgentConfig {
-  ethicalStrictness: 'permissive' | 'balanced' | 'strict';
-  proactiveMonitoring: boolean;
-  conflictResolution: boolean;
-  learningEnabled: boolean;
+type LLMProvider = OllamaProvider | HuggingFaceProvider;
+
+export interface ShakaStatus {
+  isActive: boolean;
+  isAnalyzing: boolean;
+  lastActivity: Date;
+  ethicalScore: number;
+  alertsCount: number;
+  analysisCount: number;
+  uptime: number;
 }
 
 export interface ShakaMetrics {
@@ -34,402 +30,168 @@ export interface ShakaMetrics {
   alertsGenerated: number;
   averageEthicalScore: number;
   interventionRate: number;
+  responseTime: number;
 }
 
-export class ShakaAgent extends AgenticSatellite {
-  private readonly shakaLogger = createLogger('ShakaAgent');
+export interface EthicalQueryRequest {
+  query: string;
+  context?: EthicalContext;
+  framework?: 'all' | 'utilitarian' | 'deontological' | 'virtue_ethics' | 'care_ethics';
+}
+
+export interface EthicalQueryResponse {
+  analysis: EthicalAnalysis;
+  recommendations: string[];
+  response: string;
+  confidence: number;
+  processingTime: number;
+}
+
+export class ShakaAgent extends EventEmitter {
+  private readonly logger = createLogger('ShakaAgent');
   private readonly llmProvider: LLMProvider;
   private readonly ethicalEngine: EthicalPolicyEngine;
-  private readonly conflictResolver: ConflictResolver;
   private readonly proactiveMonitor: ProactiveMonitor;
-  
-  // Shaka-specific state
-  private readonly config: ShakaConfig;
+  private readonly conflictResolver: ConflictResolver;
+
+  // Agent state
+  private isActive = false;
+  private isAnalyzing = false;
+  private startTime = Date.now();
   private metrics: ShakaMetrics = {
     ethicalAnalyses: 0,
     conflictsResolved: 0,
     alertsGenerated: 0,
     averageEthicalScore: 0.8,
     interventionRate: 0,
+    responseTime: 0,
   };
 
-  constructor(config: ShakaConfig, llmProvider?: LLMProvider) {
-    // Define Shaka's capabilities
-    const capabilities: AgenticCapabilities = {
-      planning: {
-        canCreatePlans: true,
-        canAdaptPlans: true,
-        canPrioritizeTasks: true,
-        maxPlanningHorizon: 20,
-        supportedPlanTypes: ['sequential', 'parallel'],
-      },
-      decisionMaking: {
-        canMakeAutonomousDecisions: true,
-        requiresApproval: config.ethicalStrictness === 'strict',
-        decisionTypes: ['tactical', 'strategic', 'operational'],
-        maxDecisionComplexity: 8,
-        canEvaluateRisk: true,
-      },
-      memory: {
-        shortTermCapacity: 50,
-        longTermCapacity: 1000,
-        canForget: false, // Ethical decisions should be remembered
-        supportedMemoryTypes: ['episodic', 'semantic', 'procedural'],
-        retrievalMethods: ['exact', 'semantic', 'temporal'],
-      },
-      communication: {
-        canInitiateConversation: true,
-        canBroadcast: true,
-        canNegotiate: true,
-        supportedProtocols: ['direct', 'broadcast', 'request-response'],
-        maxConcurrentConversations: 5,
-      },
-      learning: {
-        canLearnFromExperience: config.learningEnabled,
-        canAdaptBehavior: config.learningEnabled,
-        canTransferKnowledge: true,
-        learningRate: 0.1,
-        supportedLearningTypes: ['reinforcement', 'supervised'],
-      },
-      maxConcurrentTasks: 3,
-      maxExecutionTime: 300000, // 5 minutes
-      maxMemoryUsage: 256, // MB
-      supportedTools: ['ethical_analysis', 'conflict_resolution', 'monitoring', 'communication'],
-      allowedActions: ['analyze', 'recommend', 'alert', 'resolve', 'communicate'],
-      autonomyLevel: config.ethicalStrictness === 'strict' ? 7 : 9,
-    };
-
-    // Define guardrails
-    const guardrails: AgentGuardrails = {
-      maxExecutionTime: 300000, // 5 minutes
-      maxMemoryUsage: 256, // MB
-      maxApiCalls: 100,
-      maxConcurrentOperations: 3,
-      allowedTools: ['ethical_analysis', 'conflict_resolution', 'monitoring'],
-      blockedActions: ['system_modification', 'data_deletion'],
-      ethicalConstraints: [
-        'never_compromise_user_safety',
-        'maintain_transparency',
-        'respect_privacy',
-        'ensure_fairness',
-      ],
-    };
-
-    super(config, capabilities, guardrails);
-
-    this.config = config;
+  constructor(llmProvider: LLMProvider) {
+    super();
+    this.llmProvider = llmProvider;
     
-    // Initialize LLM provider
-    this.llmProvider = llmProvider ?? this.initializeLLMProvider();
-    
-    // Initialize Shaka-specific systems
-    this.ethicalEngine = new EthicalPolicyEngine(this.llmProvider);
-    this.conflictResolver = new ConflictResolver(this.llmProvider);
-    this.proactiveMonitor = new ProactiveMonitor(this.llmProvider);
-    
+    // Initialize components
+    this.ethicalEngine = new EthicalPolicyEngine(llmProvider);
+    this.proactiveMonitor = new ProactiveMonitor(llmProvider);
+    this.conflictResolver = new ConflictResolver(llmProvider);
+
     // Setup event handlers
-    this.setupShakaEventHandlers();
-    
-    // Start proactive monitoring if enabled
-    if (config.proactiveMonitoring) {
-      this.proactiveMonitor.start();
-    }
+    this.setupEventHandlers();
 
-    this.shakaLogger.info('Shaka Agent initialized', {
-      ethicalStrictness: config.ethicalStrictness,
-      autonomyLevel: capabilities.autonomyLevel,
-      proactiveMonitoring: config.proactiveMonitoring,
-    });
+    this.logger.info('ShakaAgent initialized for Dashboard');
   }
 
   /**
-   * Perceive the environment with ethical lens
+   * Activate ShakaAgent
    */
-  protected async perceive(): Promise<{
-    systemState: unknown;
-    ethicalConcerns: unknown[];
-    alerts: MonitorAlert[];
-    activeConflicts: Conflict[];
-  }> {
-    this.shakaLogger.debug('Perceiving environment with ethical analysis');
-
-    try {
-      // Get current system state
-      const systemState = await this.getSystemState();
-      
-      // Scan for immediate ethical concerns
-      const ethicalConcerns = await this.scanEthicalConcerns(systemState);
-      
-      // Get monitoring alerts
-      const alerts = await this.proactiveMonitor.scan();
-      
-      // Get active conflicts
-      const activeConflicts = this.conflictResolver.getActiveConflicts();
-
-      // Update monitoring data
-      this.proactiveMonitor.updateMonitoringData({
-        agentActivities: await this.getRecentActivities(),
-        systemMetrics: await this.getSystemMetrics(),
-        decisionHistory: await this.getRecentDecisions(),
-      });
-
-      return {
-        systemState,
-        ethicalConcerns,
-        alerts,
-        activeConflicts,
-      };
-
-    } catch (error) {
-      this.shakaLogger.error('Perception error', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Plan ethical actions based on perception
-   */
-  protected async plan(perception: {
-    systemState: unknown;
-    ethicalConcerns: unknown[];
-    alerts: MonitorAlert[];
-    activeConflicts: Conflict[];
-  }): Promise<{
-    ethicalAnalyses: string[];
-    conflictResolutions: string[];
-    monitoringActions: string[];
-    recommendations: string[];
-  }> {
-    this.shakaLogger.debug('Planning ethical actions');
-
-    const plan = {
-      ethicalAnalyses: [] as string[],
-      conflictResolutions: [] as string[],
-      monitoringActions: [] as string[],
-      recommendations: [] as string[],
-    };
-
-    // Plan ethical analyses for concerning situations
-    for (const concern of perception.ethicalConcerns) {
-      plan.ethicalAnalyses.push(`Analyze ethical implications of: ${JSON.stringify(concern)}`);
-    }
-
-    // Plan conflict resolutions
-    for (const conflict of perception.activeConflicts) {
-      plan.conflictResolutions.push(`Resolve conflict: ${conflict.description}`);
-    }
-
-    // Plan responses to alerts
-    const criticalAlerts = perception.alerts.filter(a => a.severity === 'critical' || a.severity === 'error');
-    for (const alert of criticalAlerts) {
-      plan.monitoringActions.push(`Address alert: ${alert.message}`);
-    }
-
-    // Generate proactive recommendations
-    if (plan.ethicalAnalyses.length === 0 && plan.conflictResolutions.length === 0) {
-      plan.recommendations.push('Perform routine ethical system review');
-    }
-
-    return plan;
-  }
-
-  /**
-   * Make decisions about planned actions
-   */
-  protected async decide(plan: {
-    ethicalAnalyses: string[];
-    conflictResolutions: string[];
-    monitoringActions: string[];
-    recommendations: string[];
-  }): Promise<DecisionResult> {
-    this.shakaLogger.debug('Making ethical decisions');
-
-    const options: DecisionOption[] = [];
-
-    // Convert planned actions to decision options
-    for (const analysis of plan.ethicalAnalyses) {
-      options.push({
-        id: `ethical-${Date.now()}`,
-        description: analysis,
-        expectedBenefit: 0.8,
-        risk: 0.2,
-        feasibility: 0.9,
-        estimatedDuration: 30000, // 30 seconds
-      });
-    }
-
-    for (const resolution of plan.conflictResolutions) {
-      options.push({
-        id: `conflict-${Date.now()}`,
-        description: resolution,
-        expectedBenefit: 0.9,
-        risk: 0.3,
-        feasibility: 0.7,
-        estimatedDuration: 60000, // 1 minute
-      });
-    }
-
-    for (const action of plan.monitoringActions) {
-      options.push({
-        id: `monitor-${Date.now()}`,
-        description: action,
-        expectedBenefit: 0.7,
-        risk: 0.1,
-        feasibility: 0.95,
-        estimatedDuration: 10000, // 10 seconds
-      });
-    }
-
-    for (const recommendation of plan.recommendations) {
-      options.push({
-        id: `recommend-${Date.now()}`,
-        description: recommendation,
-        expectedBenefit: 0.6,
-        risk: 0.1,
-        feasibility: 1.0,
-        estimatedDuration: 45000, // 45 seconds
-      });
-    }
-
-    // If no specific actions needed, choose to observe
-    if (options.length === 0) {
-      options.push({
-        id: 'observe',
-        description: 'Continue observing system state',
-        expectedBenefit: 0.3,
-        risk: 0.05,
-        feasibility: 1.0,
-        estimatedDuration: 5000, // 5 seconds
-      });
-    }
-
-    // Use decision engine to select best option
-    return await this.decisionEngine.makeDecision({
-      currentState: this.getState(),
-      availableOptions: options,
-      constraints: {
-        maxRisk: this.config.ethicalStrictness === 'strict' ? 0.3 : 0.5,
-        minConfidence: 0.6,
-      },
-    });
-  }
-
-  /**
-   * Execute the selected action
-   */
-  protected async execute(decision: DecisionOption): Promise<ToolResult> {
-    this.shakaLogger.info('Executing ethical action', {
-      action: decision.description,
-      expectedBenefit: decision.expectedBenefit,
-    });
-
-    const startTime = Date.now();
-
-    try {
-      let result: unknown;
-
-      if (decision.description.includes('Analyze ethical')) {
-        result = await this.performEthicalAnalysis(decision);
-      } else if (decision.description.includes('Resolve conflict')) {
-        result = await this.resolveConflict(decision);
-      } else if (decision.description.includes('Address alert')) {
-        result = await this.addressAlert(decision);
-      } else if (decision.description.includes('routine ethical')) {
-        result = await this.performRoutineReview();
-      } else {
-        result = await this.observeSystem();
-      }
-
-      const duration = Date.now() - startTime;
-
-      this.shakaLogger.info('Action executed successfully', {
-        action: decision.description,
-        duration,
-      });
-
-      return {
-        success: true,
-        data: result,
-        duration,
-        timestamp: new Date(),
-      };
-
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      
-      this.shakaLogger.error('Action execution failed', {
-        action: decision.description,
-        error,
-        duration,
-      });
-
-      return {
-        success: false,
-        error: error as Error,
-        duration,
-        timestamp: new Date(),
-      };
-    }
-  }
-
-  /**
-   * Learn from execution results
-   */
-  protected async learn(result: ToolResult): Promise<void> {
-    if (!this.config.learningEnabled) {
+  public activate(): void {
+    if (this.isActive) {
+      this.logger.warn('ShakaAgent already active');
       return;
     }
 
-    this.shakaLogger.debug('Learning from execution result', {
-      success: result.success,
-      duration: result.duration,
-    });
+    this.isActive = true;
+    this.proactiveMonitor.start();
+    
+    this.logger.info('🧠 ShakaAgent activated - ethical monitoring started');
+    this.emit('shaka:activated');
+  }
 
-    // Store result in memory for future learning
-    await this.memorySystem.store({
-      type: 'episodic',
-      content: {
-        action: 'execution_result',
-        result,
-        timestamp: result.timestamp,
-      },
-      importance: result.success ? 0.6 : 0.8, // Failures are more important to remember
-    });
+  /**
+   * Deactivate ShakaAgent
+   */
+  public deactivate(): void {
+    if (!this.isActive) {
+      return;
+    }
 
-    // Update metrics
-    if (result.success) {
+    this.isActive = false;
+    this.proactiveMonitor.stop();
+    
+    this.logger.info('ShakaAgent deactivated');
+    this.emit('shaka:deactivated');
+  }
+
+  /**
+   * Process ethical query from chat or API
+   */
+  public async processEthicalQuery(request: EthicalQueryRequest): Promise<EthicalQueryResponse> {
+    const startTime = Date.now();
+    this.isAnalyzing = true;
+
+    try {
+      this.logger.info('Processing ethical query', {
+        query: request.query.substring(0, 100),
+        framework: request.framework,
+      });
+
+      // Create ethical context
+      const context: EthicalContext = {
+        action: request.query,
+        intent: 'Ethical guidance request',
+        stakeholders: ['user', 'system'],
+        ...request.context,
+      };
+
+      // Perform comprehensive ethical analysis
+      const analysis = await this.ethicalEngine.analyzeContext(context);
+
+      // Generate human-readable response
+      const response = await this.generateEthicalResponse(request.query, analysis);
+
+      // Generate specific recommendations
+      const recommendations = analysis.recommendations.length > 0 
+        ? analysis.recommendations 
+        : await this.generateDefaultRecommendations(context, analysis);
+
+      const processingTime = Date.now() - startTime;
+
+      // Update metrics
       this.metrics.ethicalAnalyses++;
-      
-      // Extract ethical score if available
-      if (result.data && typeof result.data === 'object' && 'ethicalScore' in result.data) {
-        const ethicalScore = result.data.ethicalScore as number;
-        this.metrics.averageEthicalScore = 
-          (this.metrics.averageEthicalScore * 0.9) + (ethicalScore * 0.1);
-      }
+      this.metrics.averageEthicalScore = 
+        (this.metrics.averageEthicalScore * 0.9) + (analysis.compliance * 0.1);
+      this.metrics.responseTime = 
+        (this.metrics.responseTime * 0.9) + (processingTime * 0.1);
+
+      const result: EthicalQueryResponse = {
+        analysis,
+        recommendations,
+        response,
+        confidence: analysis.compliance,
+        processingTime,
+      };
+
+      this.emit('shaka:analysis-complete', result);
+      return result;
+
+    } catch (error) {
+      this.logger.error('Ethical query processing error', error);
+      throw error;
+    } finally {
+      this.isAnalyzing = false;
     }
   }
 
   /**
-   * Get Shaka-specific metrics
+   * Analyze content for ethical concerns
    */
-  public getShakaMetrics(): ShakaMetrics {
-    return { ...this.metrics };
-  }
+  public async analyzeContent(content: string, metadata?: Record<string, unknown>): Promise<EthicalAnalysis> {
+    const context: EthicalContext = {
+      action: 'content_analysis',
+      intent: 'Review content for ethical compliance',
+      data: content,
+      metadata,
+    };
 
-  /**
-   * Perform comprehensive ethical analysis
-   */
-  public async performEthicalAnalysis(context: EthicalContext): Promise<EthicalAnalysis> {
-    this.shakaLogger.info('Performing ethical analysis');
-    
     const analysis = await this.ethicalEngine.analyzeContext(context);
     this.metrics.ethicalAnalyses++;
-    
-    // Alert if concerning ethical issues found
+
+    // Emit alert if concerning
     if (analysis.compliance < 0.7) {
-      this.emit('ethical:concern', {
+      this.emit('shaka:ethical-concern', {
         analysis,
-        context,
+        content: content.substring(0, 200),
         severity: analysis.compliance < 0.5 ? 'critical' : 'warning',
       });
     }
@@ -437,154 +199,174 @@ export class ShakaAgent extends AgenticSatellite {
     return analysis;
   }
 
-  // Private helper methods
-
-  private initializeLLMProvider(): LLMProvider {
-    const llmConfig = {
-      provider: this.config.llmProvider,
-      model: this.config.llmModel,
-      temperature: this.config.temperature ?? 0.3, // Lower temperature for ethical reasoning
-      maxTokens: this.config.maxTokens ?? 2048,
+  /**
+   * Get current agent status
+   */
+  public getStatus(): ShakaStatus {
+    const alerts = this.proactiveMonitor.getRecentAlerts(300000); // 5 minutes
+    
+    return {
+      isActive: this.isActive,
+      isAnalyzing: this.isAnalyzing,
+      lastActivity: new Date(),
+      ethicalScore: this.metrics.averageEthicalScore,
+      alertsCount: alerts.length,
+      analysisCount: this.metrics.ethicalAnalyses,
+      uptime: Date.now() - this.startTime,
     };
-
-    return LLMProviderFactory.create(llmConfig);
   }
 
-  private setupShakaEventHandlers(): void {
-    // Handle monitoring alerts
+  /**
+   * Get agent metrics
+   */
+  public getMetrics(): ShakaMetrics {
+    return { ...this.metrics };
+  }
+
+  /**
+   * Get recent alerts
+   */
+  public getRecentAlerts(timeWindowMs = 300000): MonitorAlert[] {
+    return this.proactiveMonitor.getRecentAlerts(timeWindowMs);
+  }
+
+  /**
+   * Get active conflicts
+   */
+  public getActiveConflicts(): Conflict[] {
+    return this.conflictResolver.getActiveConflicts();
+  }
+
+  /**
+   * Get ethical policies
+   */
+  public getEthicalPolicies() {
+    return this.ethicalEngine.getPolicies();
+  }
+
+  /**
+   * Check if query requires ethical analysis
+   */
+  public requiresEthicalAnalysis(query: string): boolean {
+    const ethicalKeywords = [
+      'ethical', 'ethics', 'moral', 'right', 'wrong', 'should', 'ought',
+      'fair', 'unfair', 'bias', 'discrimination', 'privacy', 'consent',
+      'harm', 'safety', 'risk', 'responsibility', 'transparency'
+    ];
+
+    const lowerQuery = query.toLowerCase();
+    return ethicalKeywords.some(keyword => lowerQuery.includes(keyword)) ||
+           lowerQuery.includes('what would shaka') ||
+           lowerQuery.includes('ethical analysis');
+  }
+
+  // Private methods
+
+  private setupEventHandlers(): void {
+    // Monitor alerts
     this.proactiveMonitor.on('alert:created', (alert: MonitorAlert) => {
       this.metrics.alertsGenerated++;
       this.emit('shaka:alert', alert);
-    });
-
-    // Handle ethical concerns
-    this.on('ethical:concern', (data) => {
-      this.shakaLogger.warn('Ethical concern detected', data);
-    });
-  }
-
-  private async performEthicalAnalysis(decision: DecisionOption): Promise<EthicalAnalysis> {
-    const context: EthicalContext = {
-      action: decision.description,
-      intent: 'Maintain ethical compliance',
-      consequences: ['Improved system ethics', 'Better decision making'],
-      stakeholders: ['system_users', 'agents', 'operators'],
-    };
-
-    return await this.ethicalEngine.analyzeContext(context);
-  }
-
-  private async resolveConflict(decision: DecisionOption): Promise<unknown> {
-    const conflicts = this.conflictResolver.getActiveConflicts();
-    const conflict = conflicts.find(c => decision.description.includes(c.description));
-    
-    if (conflict) {
-      const resolution = await this.conflictResolver.resolveConflict(conflict.id);
-      this.metrics.conflictsResolved++;
-      return resolution;
-    }
-    
-    return { message: 'No matching conflict found' };
-  }
-
-  private async addressAlert(decision: DecisionOption): Promise<unknown> {
-    const alerts = await this.proactiveMonitor.scan();
-    const alert = alerts.find(a => decision.description.includes(a.message));
-    
-    if (alert) {
-      this.proactiveMonitor.acknowledgeAlert(alert.id);
       
-      // Take appropriate action based on alert type
       if (alert.severity === 'critical') {
-        this.emit('shaka:intervention', {
-          alertId: alert.id,
-          action: 'immediate_attention_required',
-        });
         this.metrics.interventionRate++;
+        this.emit('shaka:intervention-required', alert);
       }
+    });
+
+    // Conflict resolution
+    this.conflictResolver.on('conflict:detected', (conflict: Conflict) => {
+      this.emit('shaka:conflict-detected', conflict);
+    });
+  }
+
+  private async generateEthicalResponse(query: string, analysis: EthicalAnalysis): Promise<string> {
+    const prompt = `
+    Tu es Shaka, l'agent éthique du système Vegapunk. Réponds à cette question éthique de manière claire et utile.
+
+    Question: ${query}
+
+    Analyse éthique:
+    - Score de conformité: ${Math.round(analysis.compliance * 100)}%
+    - Préoccupations: ${analysis.concerns.length} identifiées
+    - Recommandations: ${analysis.recommendations.length} suggérées
+
+    Frameworks analysés:
+    ${analysis.frameworkAnalyses.map(f => 
+      `- ${f.framework}: ${Math.round(f.score * 100)}% - ${f.keyPoints[0] ?? ''}`
+    ).join('\n')}
+
+    Fournis une réponse éthique personnalisée, empathique et pratique. Sois concis mais complet.
+    Si le score est bas (<70%), explique les préoccupations. Si élevé, encourage la poursuite.
+    `;
+
+    const response = await this.llmProvider.generateResponse(prompt);
+    return response;
+  }
+
+  private async generateDefaultRecommendations(
+    context: EthicalContext, 
+    analysis: EthicalAnalysis
+  ): Promise<string[]> {
+    if (analysis.compliance >= 0.8) {
+      return [
+        'Continue avec cette approche éthique solide',
+        'Maintenir la transparence dans les communications',
+        'Surveiller les impacts à long terme'
+      ];
+    } else if (analysis.compliance >= 0.6) {
+      return [
+        'Réexaminer les implications éthiques',
+        'Consulter les parties prenantes concernées',
+        'Considérer des alternatives plus éthiques',
+        'Mettre en place des garde-fous supplémentaires'
+      ];
+    } else {
+      return [
+        '⚠️ Revoir complètement cette approche',
+        'Identifier et adresser les risques éthiques majeurs',
+        'Consulter des experts éthiques',
+        'Considérer l\'abstention si les risques persistent'
+      ];
+    }
+  }
+
+  /**
+   * Quick health check for dashboard
+   */
+  public async healthCheck(): Promise<{
+    status: 'healthy' | 'warning' | 'error';
+    details: Record<string, unknown>;
+  }> {
+    try {
+      const status = this.getStatus();
+      const alerts = this.getRecentAlerts(60000); // 1 minute
+      const criticalAlerts = alerts.filter(a => a.severity === 'critical').length;
+
+      let health: 'healthy' | 'warning' | 'error' = 'healthy';
       
-      return { alertHandled: alert.id, action: 'acknowledged' };
+      if (criticalAlerts > 0) {
+        health = 'error';
+      } else if (alerts.length > 5 || status.ethicalScore < 0.7) {
+        health = 'warning';
+      }
+
+      return {
+        status: health,
+        details: {
+          isActive: status.isActive,
+          ethicalScore: status.ethicalScore,
+          alertsCount: alerts.length,
+          criticalAlerts,
+          uptime: status.uptime,
+          analysisCount: status.analysisCount,
+        },
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        details: { error: (error as Error).message },
+      };
     }
-    
-    return { message: 'No matching alert found' };
-  }
-
-  private async performRoutineReview(): Promise<unknown> {
-    const systemState = await this.getSystemState();
-    const analysis = await this.ethicalEngine.analyzeContext({
-      action: 'routine_system_review',
-      intent: 'Ensure ongoing ethical compliance',
-      data: systemState,
-    });
-
-    return {
-      reviewType: 'routine_ethical_review',
-      compliance: analysis.compliance,
-      recommendations: analysis.recommendations,
-      timestamp: new Date(),
-    };
-  }
-
-  private async observeSystem(): Promise<unknown> {
-    return {
-      action: 'system_observation',
-      timestamp: new Date(),
-      status: 'monitoring_active',
-    };
-  }
-
-  private async getSystemState(): Promise<unknown> {
-    return {
-      agentStatus: this.getState(),
-      timestamp: new Date(),
-      activeComponents: ['ethical_engine', 'conflict_resolver', 'proactive_monitor'],
-    };
-  }
-
-  private async scanEthicalConcerns(systemState: unknown): Promise<unknown[]> {
-    // Simplified ethical concern scanning
-    const concerns = [];
-    
-    // Check for any obvious ethical issues in system state
-    if (systemState && typeof systemState === 'object') {
-      // This would be more sophisticated in a real implementation
-      concerns.push('routine_ethical_scan_complete');
-    }
-    
-    return concerns;
-  }
-
-  private async getRecentActivities(): Promise<unknown[]> {
-    // Get recent activities from memory
-    const memories = await this.memorySystem.retrieve({
-      type: 'episodic',
-      limit: 10,
-    });
-    
-    return memories.map(m => ({
-      content: m.content,
-      timestamp: m.timestamp,
-      importance: m.importance,
-    }));
-  }
-
-  private async getSystemMetrics(): Promise<unknown> {
-    return {
-      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
-      uptime: process.uptime() * 1000,
-      timestamp: new Date(),
-    };
-  }
-
-  private async getRecentDecisions(): Promise<unknown[]> {
-    // This would integrate with decision tracking in a real implementation
-    return [
-      {
-        decision: 'routine_monitoring',
-        confidence: 0.8,
-        ethicalScore: this.metrics.averageEthicalScore,
-        timestamp: new Date(),
-      },
-    ];
   }
 }

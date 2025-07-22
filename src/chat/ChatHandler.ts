@@ -1,6 +1,6 @@
 import { OllamaProvider } from '@/llm/OllamaProvider';
 import { HuggingFaceProvider } from '@/llm/HuggingFaceProvider';
-import { SimplifiedShakaAgent } from '@agents/shaka/SimplifiedShakaAgent';
+import { ShakaAgent } from '@agents/shaka/ShakaAgent';
 import { logger } from '@utils/logger';
 import { EventEmitter } from 'events';
 
@@ -27,7 +27,7 @@ export class ChatHandler extends EventEmitter {
   private messageIdCounter: number = 0;
   private providers: Map<ProviderType, LLMProvider>;
   private currentProvider: ProviderType;
-  private shakaAgent?: SimplifiedShakaAgent;
+  private shakaAgent?: ShakaAgent;
 
   constructor(private ollama: OllamaProvider, private huggingface?: HuggingFaceProvider) {
     super();
@@ -261,7 +261,7 @@ Assistant:`;
       // Use current provider for ShakaAgent
       const provider = this.providers.get(this.currentProvider);
       if (provider) {
-        this.shakaAgent = new SimplifiedShakaAgent(provider);
+        this.shakaAgent = new ShakaAgent(provider);
         this.setupShakaEventHandlers();
         logger.info('🧠 ShakaAgent initialized and integrated with ChatHandler');
       }
@@ -438,7 +438,7 @@ Assistant:`;
 
   // ShakaAgent management methods
 
-  public getShakaAgent(): SimplifiedShakaAgent | undefined {
+  public getShakaAgent(): ShakaAgent | undefined {
     return this.shakaAgent;
   }
 

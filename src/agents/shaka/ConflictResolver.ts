@@ -314,10 +314,7 @@ export class ConflictResolver extends EventEmitter {
     Respond with YES or NO and brief reasoning.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Analyze ethical framework conflicts objectively.',
-      temperature: 0.2,
+    const response = await this.llmProvider.generateResponse(prompt, {      temperature: 0.2,
     });
 
     return response.content.toLowerCase().includes('yes');
@@ -339,10 +336,7 @@ export class ConflictResolver extends EventEmitter {
     Could these policies conflict in the given context? Rate severity (LOW/MEDIUM/HIGH) and explain.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Evaluate policy conflicts and their severity.',
-      temperature: 0.2,
+    const response = await this.llmProvider.generateResponse(prompt, {      temperature: 0.2,
     });
 
     const severityMatch = response.content.match(/(LOW|MEDIUM|HIGH)/i);
@@ -374,10 +368,7 @@ export class ConflictResolver extends EventEmitter {
     Respond with YES or NO and brief reasoning.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Identify contradictions in agent communications.',
-      temperature: 0.2,
+    const response = await this.llmProvider.generateResponse(prompt, {      temperature: 0.2,
     });
 
     return response.content.toLowerCase().includes('yes');
@@ -402,10 +393,7 @@ export class ConflictResolver extends EventEmitter {
     Recommend strategy with reasoning and specific actions.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Recommend conflict resolution strategies with clear reasoning.',
-      temperature: 0.4,
+    const response = await this.llmProvider.generateResponse(prompt, {      temperature: 0.4,
     });
 
     const strategyMatch = response.content.match(/(PRIORITIZE|COMPROMISE|DEFER|ESCALATE|ABSTAIN)/i);

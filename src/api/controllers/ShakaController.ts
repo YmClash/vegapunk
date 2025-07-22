@@ -6,13 +6,13 @@
 
 import { Request, Response } from 'express';
 import { createLogger } from '@utils/logger';
-import { SimplifiedShakaAgent, type EthicalQueryRequest } from '@agents/shaka/SimplifiedShakaAgent';
+import { ShakaAgent, type EthicalQueryRequest } from '@agents/shaka/ShakaAgent';
 import type { EthicalContext } from '@agents/shaka/EthicalPolicyEngine';
 
 const logger = createLogger('ShakaController');
 
 export class ShakaController {
-  constructor(private shakaAgent: SimplifiedShakaAgent) {
+  constructor(private shakaAgent: ShakaAgent) {
     this.setupEventListeners();
   }
 
