@@ -46,6 +46,8 @@ import {
 import { A2ANetworkMonitor } from '../components/A2ANetworkMonitor';
 import { LangGraphWorkflowMonitor } from '../components/LangGraphWorkflowMonitor';
 import { MCPResourcesDashboard } from '../components/MCPResourcesDashboard';
+// Import advanced cockpit components
+import { A2ACockpitPanel } from '../components/cockpit/A2ACockpitPanel';
 
 interface SystemHealthStatus {
   overall: 'healthy' | 'degraded' | 'unhealthy';
@@ -547,14 +549,15 @@ export function MultiAgentEcosystemPage() {
         </Grid>
       </Grid>
 
-      {/* Detailed Monitoring Tabs */}
+      {/* Advanced Monitoring Tabs with Professional Cockpit */}
       <Paper elevation={3} sx={{ mb: 4 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)}>
             <Tab 
-              label="A2A Network Monitor" 
+              label="🚀 A2A Advanced Cockpit" 
               icon={<ProtocolIcon />}
               iconPosition="start"
+              sx={{ fontWeight: 'bold', color: 'primary.main' }}
             />
             <Tab 
               label="LangGraph Workflows" 
@@ -566,13 +569,20 @@ export function MultiAgentEcosystemPage() {
               icon={<ToolIcon />}
               iconPosition="start"
             />
+            <Tab 
+              label="Network Monitor (Legacy)" 
+              icon={<ProtocolIcon />}
+              iconPosition="start"
+              sx={{ opacity: 0.7 }}
+            />
           </Tabs>
         </Box>
 
-        <Box sx={{ p: 3 }}>
-          {activeTab === 0 && <A2ANetworkMonitor />}
+        <Box sx={{ p: 3, minHeight: '600px' }}>
+          {activeTab === 0 && <A2ACockpitPanel />}
           {activeTab === 1 && <LangGraphWorkflowMonitor />}
           {activeTab === 2 && <MCPResourcesDashboard />}
+          {activeTab === 3 && <A2ANetworkMonitor />}
         </Box>
       </Paper>
 
