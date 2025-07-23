@@ -48,6 +48,7 @@ import { LangGraphWorkflowMonitor } from '../components/LangGraphWorkflowMonitor
 import { MCPResourcesDashboard } from '../components/MCPResourcesDashboard';
 // Import advanced cockpit components
 import { A2ACockpitPanel } from '../components/cockpit/A2ACockpitPanel';
+import { LangGraphCockpitPanel } from '../components/cockpit/LangGraphCockpitPanel';
 
 interface SystemHealthStatus {
   overall: 'healthy' | 'degraded' | 'unhealthy';
@@ -560,9 +561,10 @@ export function MultiAgentEcosystemPage() {
               sx={{ fontWeight: 'bold', color: 'primary.main' }}
             />
             <Tab 
-              label="LangGraph Workflows" 
+              label="🔄 LangGraph Advanced Cockpit" 
               icon={<WorkflowIcon />}
               iconPosition="start"
+              sx={{ fontWeight: 'bold', color: 'secondary.main' }}
             />
             <Tab 
               label="MCP Resources" 
@@ -580,7 +582,7 @@ export function MultiAgentEcosystemPage() {
 
         <Box sx={{ p: 3, minHeight: '600px' }}>
           {activeTab === 0 && <A2ACockpitPanel />}
-          {activeTab === 1 && <LangGraphWorkflowMonitor />}
+          {activeTab === 1 && <LangGraphCockpitPanel />}
           {activeTab === 2 && <MCPResourcesDashboard />}
           {activeTab === 3 && <A2ANetworkMonitor />}
         </Box>
