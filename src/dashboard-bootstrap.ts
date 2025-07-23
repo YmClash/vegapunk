@@ -7,6 +7,11 @@ import { OllamaProvider } from './llm/OllamaProvider';
 import { HuggingFaceProvider } from './llm/HuggingFaceProvider';
 import { ChatHandler } from './chat/ChatHandler';
 import { ShakaController } from './api/controllers/ShakaController';
+import { VegapunkAgentGraph } from './graph/VegapunkAgentGraph';
+import langGraphRoutes, { initializeLangGraphRoutes } from './api/routes/langgraph';
+import { LangGraphWebSocketHandler } from './websocket/langgraph-handlers';
+import a2aRoutes, { initializeA2ARoutes } from './api/routes/a2a';
+import { A2AWebSocketHandler } from './websocket/a2a-handlers';
 import { logger } from './utils/logger';
 
 // Chat logs storage
@@ -160,7 +165,34 @@ export async function startDashboardOnly(): Promise<void> {
         'agents/shaka/metrics': '/api/agents/shaka/metrics',
         'agents/shaka/alerts': '/api/agents/shaka/alerts',
         'agents/shaka/conflicts': '/api/agents/shaka/conflicts',
-        'agents/shaka/detect-ethics': '/api/agents/shaka/detect-ethics (POST)'
+        'agents/shaka/detect-ethics': '/api/agents/shaka/detect-ethics (POST)',
+        
+        // A2A Protocol APIs
+        'a2a/network/topology': '/api/a2a/network/topology',
+        'a2a/agents': '/api/a2a/agents',
+        'a2a/messages/flow': '/api/a2a/messages/flow',
+        'a2a/messages/recent': '/api/a2a/messages/recent',
+        'a2a/logs': '/api/a2a/logs',
+        'a2a/metrics/performance': '/api/a2a/metrics/performance',
+        'a2a/reports/generate': '/api/a2a/reports/generate (POST)',
+        'a2a/reports': '/api/a2a/reports',
+        'a2a/health': '/api/a2a/health',
+        
+        // LangGraph Cockpit APIs
+        'langgraph/workflows': '/api/langgraph/workflows',
+        'langgraph/workflows/{id}': '/api/langgraph/workflows/{id}',
+        'langgraph/workflows/{id}/topology': '/api/langgraph/workflows/{id}/topology',
+        'langgraph/workflows/{id}/control': '/api/langgraph/workflows/{id}/control (POST)',
+        'langgraph/dataflow/traces': '/api/langgraph/dataflow/traces',
+        'langgraph/dataflow/export': '/api/langgraph/dataflow/export (POST)',
+        'langgraph/handoffs': '/api/langgraph/handoffs',
+        'langgraph/handoffs/metrics': '/api/langgraph/handoffs/metrics',
+        'langgraph/supervisor/decisions': '/api/langgraph/supervisor/decisions',
+        'langgraph/supervisor/metrics': '/api/langgraph/supervisor/metrics',
+        'langgraph/templates': '/api/langgraph/templates',
+        'langgraph/templates/{id}/execute': '/api/langgraph/templates/{id}/execute (POST)',
+        'langgraph/health': '/api/langgraph/health',
+        'langgraph/metrics/performance': '/api/langgraph/metrics/performance'
       },
       frontend: {
         main: 'http://localhost:5173',
@@ -175,6 +207,21 @@ export async function startDashboardOnly(): Promise<void> {
         }
       },
       websocket: 'ws://localhost:8080',
+      websocketNamespaces: {
+        chat: 'ws://localhost:8080/',
+        // A2A Protocol WebSocket Namespaces
+        a2aNetwork: 'ws://localhost:8080/api/a2a/network/live',
+        a2aMessages: 'ws://localhost:8080/api/a2a/messages/live',
+        a2aLogs: 'ws://localhost:8080/api/a2a/logs/live',
+        a2aMetrics: 'ws://localhost:8080/api/a2a/metrics/live',
+        a2aHealth: 'ws://localhost:8080/api/a2a/health/live',
+        // LangGraph WebSocket Namespaces
+        langGraphWorkflows: 'ws://localhost:8080/api/langgraph/workflows/live',
+        langGraphDataflow: 'ws://localhost:8080/api/langgraph/dataflow/live',
+        langGraphHandoffs: 'ws://localhost:8080/api/langgraph/handoffs/live',
+        langGraphSupervisor: 'ws://localhost:8080/api/langgraph/supervisor/live',
+        langGraphHealth: 'ws://localhost:8080/api/langgraph/health/live'
+      },
       features: [
         'Multi-provider LLM support (Ollama + Hugging Face)',
         'Real-time chat with dynamic provider switching',
@@ -190,7 +237,15 @@ export async function startDashboardOnly(): Promise<void> {
         'Performance metrics visualization',
         'Error monitoring and automatic recovery',
         'Environment-based configuration management',
-        'Provider status monitoring and fallback'
+        'Provider status monitoring and fallback',
+        'LangGraph Advanced Cockpit - Workflow orchestration monitoring',
+        'D3.js workflow visualization with hierarchical tree layouts',
+        'Real-time dataflow tracing with timeline visualization',
+        'Agent handoff monitoring and performance analytics',
+        'Supervisor decision intelligence with confidence scoring',
+        'Workflow template library with execution management',
+        'Multi-protocol architecture (A2A + LangGraph + MCP)',
+        'Enterprise-level debugging interfaces and system health monitoring'
       ]
     });
   });
@@ -218,7 +273,42 @@ export async function startDashboardOnly(): Promise<void> {
     // 3. Create Chat Handler with both providers
     const chatHandler = new ChatHandler(ollama, huggingface);
 
-    // 4. Initialize ShakaAgent Controller
+    // 4. Initialize A2AProtocol (stub for now)
+    const { A2AProtocol } = await import('./a2a/A2AProtocol');
+    const a2aProtocol = new A2AProtocol();
+    await a2aProtocol.initialize();
+
+    // 5. Initialize VegapunkAgentGraph
+    logger.info('🔧 Initializing VegapunkAgentGraph...');
+    const vegapunkGraph = new VegapunkAgentGraph(a2aProtocol, chatHandler, {
+      enableA2AIntegration: true,
+      enableMCPTools: true,
+      debugMode: true,
+      maxIterations: 10,
+      timeout: 120000
+    });
+    await vegapunkGraph.initialize();
+    logger.info('✅ VegapunkAgentGraph initialized');
+
+    // 6. Initialize A2A API Routes
+    initializeA2ARoutes(a2aProtocol);
+    logger.info('✅ A2A API routes initialized');
+
+    // 7. Initialize A2A WebSocket Handler
+    const a2aWsHandler = new A2AWebSocketHandler(io);
+    a2aWsHandler.initialize(a2aProtocol);
+    logger.info('✅ A2A WebSocket handler initialized');
+
+    // 8. Initialize LangGraph API Routes
+    initializeLangGraphRoutes(vegapunkGraph);
+    logger.info('✅ LangGraph API routes initialized');
+
+    // 9. Initialize LangGraph WebSocket Handler
+    const langGraphWsHandler = new LangGraphWebSocketHandler(io);
+    langGraphWsHandler.initialize(vegapunkGraph);
+    logger.info('✅ LangGraph WebSocket handler initialized');
+
+    // 10. Initialize ShakaAgent Controller
     const shakaAgent = chatHandler.getShakaAgent();
     const shakaController = shakaAgent ? new ShakaController(shakaAgent) : null;
     if (shakaController) {
@@ -227,7 +317,7 @@ export async function startDashboardOnly(): Promise<void> {
       logger.warn('⚠️ ShakaAgent Controller not available - ShakaAgent not initialized');
     }
 
-    // 5. API Routes
+    // 11. API Routes
     app.get('/api/health', async (req, res) => {
       const health = await ollama.getHealthStatus();
       const models = await ollama.listModels();
@@ -567,6 +657,14 @@ export async function startDashboardOnly(): Promise<void> {
       logger.info('🧠 ShakaAgent API routes registered');
     }
 
+    // A2A API Routes
+    app.use('/api/a2a', a2aRoutes);
+    logger.info('🔄 A2A API routes registered');
+
+    // LangGraph API Routes
+    app.use('/api/langgraph', langGraphRoutes);
+    logger.info('🔄 LangGraph API routes registered');
+
     // 4. WebSocket for real-time chat
     io.on('connection', (socket) => {
       logger.info(`📱 Client connected: ${socket.id}`);
@@ -891,6 +989,51 @@ export async function startDashboardOnly(): Promise<void> {
       
       // Add initial system log
       addChatLog('system', `Vegapunk Dashboard started on port ${PORT}`);
+    });
+
+    // Graceful shutdown handlers
+    const cleanup = async () => {
+      logger.info('🔄 Shutting down Vegapunk Dashboard...');
+      
+      try {
+        // Cleanup A2A WebSocket handler
+        if (a2aWsHandler) {
+          a2aWsHandler.cleanup();
+          logger.info('✅ A2A WebSocket handler cleaned up');
+        }
+
+        // Cleanup LangGraph WebSocket handler
+        if (langGraphWsHandler) {
+          langGraphWsHandler.cleanup();
+          logger.info('✅ LangGraph WebSocket handler cleaned up');
+        }
+        
+        // Cleanup VegapunkAgentGraph
+        if (vegapunkGraph) {
+          await vegapunkGraph.shutdown?.();
+          logger.info('✅ VegapunkAgentGraph shut down');
+        }
+        
+        // Close server
+        server.close(() => {
+          logger.info('✅ Server closed');
+          process.exit(0);
+        });
+      } catch (error) {
+        logger.error('❌ Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    process.on('SIGTERM', cleanup);
+    process.on('SIGINT', cleanup);
+    process.on('uncaughtException', (error) => {
+      logger.error('❌ Uncaught Exception:', error);
+      cleanup();
+    });
+    process.on('unhandledRejection', (error) => {
+      logger.error('❌ Unhandled Rejection:', error);
+      cleanup();
     });
 
   } catch (error) {

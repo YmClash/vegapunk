@@ -147,20 +147,24 @@ export function LangGraphWorkflowVisualization({
     const g = svg.append("g");
     svgGroupRef.current = g;
 
-    // Create hierarchical layout
+    // Create hierarchical layout with proper centering
     const hierarchyData = createHierarchyFromTopology(topology);
     const tree = d3.tree<WorkflowNode>()
-      .size([width - 120, svgHeight - 120])
-      .separation((a, b) => (a.parent === b.parent ? 1 : 1.5));
+      .size([svgHeight - 200, width - 200])
+      .separation((a, b) => (a.parent === b.parent ? 1.2 : 2));
 
     const root = tree(hierarchyData);
 
+    // Calculate center offsets for proper positioning
+    const centerX = width / 2;
+    const centerY = svgHeight / 2;
+    
     // Create links (edges)
     const links = root.links();
     
     const linkPathGenerator = d3.linkHorizontal<any, any>()
-      .x(d => d.y + 60)
-      .y(d => d.x + 60);
+      .x(d => d.y + centerX - (width - 200) / 2)
+      .y(d => d.x + centerY - (svgHeight - 200) / 2);
 
     // Draw links
     g.selectAll('.link')
@@ -179,13 +183,17 @@ export function LangGraphWorkflowVisualization({
         return edge?.condition ? '5,5' : 'none';
       });
 
-    // Create nodes
+    // Create nodes with proper centering
     const nodeGroups = g.selectAll('.node')
       .data(root.descendants())
       .enter()
       .append('g')
       .attr('class', 'node')
-      .attr('transform', (d: any) => `translate(${d.y + 60}, ${d.x + 60})`)
+      .attr('transform', (d: any) => {
+        const x = d.y + centerX - (width - 200) / 2;
+        const y = d.x + centerY - (svgHeight - 200) / 2;
+        return `translate(${x}, ${y})`;
+      })
       .style('cursor', 'pointer')
       .on('click', (event, d: any) => handleNodeClick(d.data));
 
@@ -197,37 +205,38 @@ export function LangGraphWorkflowVisualization({
       .attr('stroke-width', 3)
       .attr('opacity', 0.9);
 
-    // Node icons/symbols
+    // Node icons/symbols - Larger symbols for better visibility
     nodeGroups.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
       .attr('fill', 'white')
-      .attr('font-size', '14px')
+      .attr('font-size', '18px')
       .attr('font-weight', 'bold')
       .text((d: any) => getNodeSymbol(d.data.type));
 
-    // Node labels
+    // Node labels - Larger and better positioned
     nodeGroups.append('text')
       .attr('x', 0)
-      .attr('y', (d: any) => getNodeRadius(d.data.type) + 20)
+      .attr('y', (d: any) => getNodeRadius(d.data.type) + 25)
       .attr('text-anchor', 'middle')
       .attr('fill', '#333')
-      .attr('font-size', '12px')
-      .attr('font-weight', '500')
+      .attr('font-size', '14px')
+      .attr('font-weight', '600')
       .text((d: any) => d.data.name);
 
-    // Agent labels for agent nodes
+    // Agent labels for agent nodes - Better positioned
     nodeGroups
       .filter((d: any) => d.data.agent)
       .append('text')
       .attr('x', 0)
-      .attr('y', (d: any) => getNodeRadius(d.data.type) + 35)
+      .attr('y', (d: any) => getNodeRadius(d.data.type) + 45)
       .attr('text-anchor', 'middle')
       .attr('fill', '#666')
-      .attr('font-size', '10px')
+      .attr('font-size', '12px')
+      .attr('font-weight', '500')
       .text((d: any) => d.data.agent);
 
-    // Add zoom behavior
+    // Add zoom behavior with proper centering
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.5, 3])
       .on('zoom', (event) => {
@@ -236,6 +245,10 @@ export function LangGraphWorkflowVisualization({
       });
 
     svg.call(zoom);
+
+    // Initialize with center transform to prevent repositioning issues
+    const initialTransform = d3.zoomIdentity.translate(0, 0).scale(1);
+    svg.call(zoom.transform as any, initialTransform);
 
     // Clean up simulation
     return () => {
@@ -320,17 +333,17 @@ export function LangGraphWorkflowVisualization({
   };
 
   /**
-   * Get node radius based on type
+   * Get node radius based on type - Increased sizes for better visibility
    */
   const getNodeRadius = (type: string): number => {
     const sizes = {
-      'start': 20,
-      'supervisor': 30,
-      'agent': 25,
-      'condition': 18,
-      'end': 20
+      'start': 35,
+      'supervisor': 45,
+      'agent': 40,
+      'condition': 30,
+      'end': 35
     };
-    return sizes[type as keyof typeof sizes] || 20;
+    return sizes[type as keyof typeof sizes] || 35;
   };
 
   /**
@@ -409,17 +422,26 @@ export function LangGraphWorkflowVisualization({
     if (!svgRef.current) return;
 
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom<SVGSVGElement, unknown>();
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.5, 3])
+      .on('zoom', (event) => {
+        if (svgGroupRef.current) {
+          svgGroupRef.current.attr('transform', event.transform);
+          setZoomLevel(event.transform.k);
+        }
+      });
 
     switch (direction) {
       case 'in':
-        svg.transition().call(zoom.scaleBy as any, 1.5);
+        svg.transition().duration(300).call(zoom.scaleBy as any, 1.5);
         break;
       case 'out':
-        svg.transition().call(zoom.scaleBy as any, 0.67);
+        svg.transition().duration(300).call(zoom.scaleBy as any, 0.67);
         break;
       case 'center':
-        svg.transition().call(zoom.transform as any, d3.zoomIdentity);
+        // Reset to center with identity transform
+        const centerTransform = d3.zoomIdentity.translate(0, 0).scale(1);
+        svg.transition().duration(500).call(zoom.transform as any, centerTransform);
         break;
     }
   };
