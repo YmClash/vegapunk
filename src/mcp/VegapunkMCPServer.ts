@@ -247,10 +247,10 @@ export class VegapunkMCPServer extends EventEmitter implements MCPServer {
       this.metrics.server.totalRequests++;
       this.metrics.tools.totalCalls++;
       
-      const { name, arguments: args } = request.params;
+      const { name, arguments: toolArgs } = request.params;
       
       try {
-        const result = await this.executeTool(name, args);
+        const result = await this.executeTool(name, toolArgs);
         
         // Update metrics
         this.metrics.tools.callsByTool.set(
@@ -333,21 +333,21 @@ export class VegapunkMCPServer extends EventEmitter implements MCPServer {
   /**
    * Execute a tool
    */
-  private async executeTool(toolName: string, arguments: Record<string, any>): Promise<MCPToolResult> {
+  private async executeTool(toolName: string, toolArguments: Record<string, any>): Promise<MCPToolResult> {
     const executor = this.toolExecutors.get(toolName);
     if (!executor) {
       throw new VegapunkMCPError(`Tool not found: ${toolName}`, 'TOOL_NOT_FOUND');
     }
 
     // Validate arguments
-    if (!executor.validate(arguments)) {
+    if (!executor.validate(toolArguments)) {
       throw new VegapunkMCPError(`Invalid arguments for tool: ${toolName}`, 'INVALID_ARGUMENTS');
     }
 
     // Create execution context
     const context: MCPExecutionContext = {
       tool: this.tools.find(t => t.name === toolName)!,
-      arguments,
+      arguments: toolArguments,
       agent: {
         agentId: 'mcp-client',
         sessionId: `session-${Date.now()}`,

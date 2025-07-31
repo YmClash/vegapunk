@@ -244,25 +244,29 @@ export interface MCPServerConfig {
   host?: string;
   enableA2AIntegration: boolean;
   enableLangGraphIntegration: boolean;
-  security: {
+  tools: {
+    enabled?: boolean;
+    enabledCategories?: VegapunkToolCategory[];
+    customTools?: VegapunkMCPTool[];
+  };
+  resources: {
+    enabled?: boolean;
+    enabledResources?: string[];
+    customResources?: VegapunkMCPResource[];
+  };
+  logging: {
+    level: 'debug' | 'info' | 'warn' | 'error';
+    enableConsole?: boolean;
+    enableFile?: boolean;
+    enableRequestLogging?: boolean;
+  };
+  security?: {
     enableAuthentication: boolean;
     allowedOrigins?: string[];
     rateLimiting?: {
       windowMs: number;
       maxRequests: number;
     };
-  };
-  tools: {
-    enabledCategories: VegapunkToolCategory[];
-    customTools?: VegapunkMCPTool[];
-  };
-  resources: {
-    enabledResources: string[];
-    customResources?: VegapunkMCPResource[];
-  };
-  logging: {
-    level: 'debug' | 'info' | 'warn' | 'error';
-    enableRequestLogging: boolean;
   };
 }
 
@@ -272,7 +276,7 @@ export interface MCPServerConfig {
 
 export interface ToolExecutor {
   execute(context: MCPExecutionContext): Promise<MCPToolResult>;
-  validate(arguments: Record<string, any>): boolean;
+  validate(toolArguments: Record<string, any>): boolean;
   getSchema(): JSONSchema;
 }
 
