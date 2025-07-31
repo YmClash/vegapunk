@@ -112,8 +112,8 @@ export class EthicalAnalysisTool implements ToolExecutor {
   /**
    * Validate input arguments
    */
-  validate(arguments: Record<string, any>): boolean {
-    const { content, frameworks } = arguments;
+  validate(toolArguments: Record<string, any>): boolean {
+    const { content, frameworks } = toolArguments;
 
     // Content is required
     if (!content || typeof content !== 'string') {

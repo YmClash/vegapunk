@@ -49,6 +49,7 @@ import { MCPResourcesDashboard } from '../components/MCPResourcesDashboard';
 // Import advanced cockpit components
 import { A2ACockpitPanel } from '../components/cockpit/A2ACockpitPanel';
 import { LangGraphCockpitPanel } from '../components/cockpit/LangGraphCockpitPanel';
+import { MCPAdvancedCockpitPanel } from '../components/cockpit/mcp/MCPAdvancedCockpitPanel';
 
 interface SystemHealthStatus {
   overall: 'healthy' | 'degraded' | 'unhealthy';
@@ -567,9 +568,10 @@ export function MultiAgentEcosystemPage() {
               sx={{ fontWeight: 'bold', color: 'secondary.main' }}
             />
             <Tab 
-              label="MCP Resources" 
+              label="🔧 MCP Advanced Cockpit" 
               icon={<ToolIcon />}
               iconPosition="start"
+              sx={{ fontWeight: 'bold', color: 'success.main' }}
             />
             <Tab 
               label="Network Monitor (Legacy)" 
@@ -583,7 +585,7 @@ export function MultiAgentEcosystemPage() {
         <Box sx={{ p: 3, minHeight: '600px' }}>
           {activeTab === 0 && <A2ACockpitPanel />}
           {activeTab === 1 && <LangGraphCockpitPanel />}
-          {activeTab === 2 && <MCPResourcesDashboard />}
+          {activeTab === 2 && <MCPAdvancedCockpitPanel />}
           {activeTab === 3 && <A2ANetworkMonitor />}
         </Box>
       </Paper>

@@ -136,8 +136,8 @@ export class TechnicalSupportTool implements ToolExecutor {
   /**
    * Validate input arguments
    */
-  validate(arguments: Record<string, any>): boolean {
-    const { query, category } = arguments;
+  validate(toolArguments: Record<string, any>): boolean {
+    const { query, category } = toolArguments;
 
     // Query is required
     if (!query || typeof query !== 'string') {

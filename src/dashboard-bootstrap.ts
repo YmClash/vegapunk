@@ -12,6 +12,10 @@ import langGraphRoutes, { initializeLangGraphRoutes } from './api/routes/langgra
 import { LangGraphWebSocketHandler } from './websocket/langgraph-handlers';
 import a2aRoutes, { initializeA2ARoutes } from './api/routes/a2a';
 import { A2AWebSocketHandler } from './websocket/a2a-handlers';
+import mcpRoutes, { initializeMCPRoutes } from './api/routes/mcp';
+import { MCPServerManager } from './api/services/MCPServerManager';
+import { MCPToolsService } from './api/services/MCPToolsService';
+import { MCPWebSocketHandler } from './websocket/mcp-handlers';
 import { logger } from './utils/logger';
 
 // Chat logs storage
@@ -192,7 +196,26 @@ export async function startDashboardOnly(): Promise<void> {
         'langgraph/templates': '/api/langgraph/templates',
         'langgraph/templates/{id}/execute': '/api/langgraph/templates/{id}/execute (POST)',
         'langgraph/health': '/api/langgraph/health',
-        'langgraph/metrics/performance': '/api/langgraph/metrics/performance'
+        'langgraph/metrics/performance': '/api/langgraph/metrics/performance',
+        
+        // MCP Advanced Cockpit APIs
+        'mcp/server/status': '/api/mcp/server/status',
+        'mcp/server/start': '/api/mcp/server/start (POST)',
+        'mcp/server/stop': '/api/mcp/server/stop (POST)',
+        'mcp/server/restart': '/api/mcp/server/restart (POST)',
+        'mcp/server/logs': '/api/mcp/server/logs',
+        'mcp/server/config': '/api/mcp/server/config',
+        'mcp/tools/list': '/api/mcp/tools/list',
+        'mcp/tools/test': '/api/mcp/tools/test (POST)',
+        'mcp/tools/register': '/api/mcp/tools/register (POST)',
+        'mcp/tools/analytics': '/api/mcp/tools/analytics',
+        'mcp/resources/list': '/api/mcp/resources/list',
+        'mcp/resources/usage': '/api/mcp/resources/usage',
+        'mcp/resources/manage': '/api/mcp/resources/manage (POST)',
+        'mcp/executions/active': '/api/mcp/executions/active',
+        'mcp/executions/history': '/api/mcp/executions/history',
+        'mcp/health': '/api/mcp/health',
+        'mcp/metrics/performance': '/api/mcp/metrics/performance'
       },
       frontend: {
         main: 'http://localhost:5173',
@@ -220,7 +243,13 @@ export async function startDashboardOnly(): Promise<void> {
         langGraphDataflow: 'ws://localhost:8080/api/langgraph/dataflow/live',
         langGraphHandoffs: 'ws://localhost:8080/api/langgraph/handoffs/live',
         langGraphSupervisor: 'ws://localhost:8080/api/langgraph/supervisor/live',
-        langGraphHealth: 'ws://localhost:8080/api/langgraph/health/live'
+        langGraphHealth: 'ws://localhost:8080/api/langgraph/health/live',
+        // MCP Advanced Cockpit WebSocket Namespaces
+        mcpServerStatus: 'ws://localhost:8080/api/mcp/server/live',
+        mcpLogsStream: 'ws://localhost:8080/api/mcp/logs/live',
+        mcpToolExecutions: 'ws://localhost:8080/api/mcp/executions/live',
+        mcpMetrics: 'ws://localhost:8080/api/mcp/metrics/live',
+        mcpAlerts: 'ws://localhost:8080/api/mcp/alerts/live'
       },
       features: [
         'Multi-provider LLM support (Ollama + Hugging Face)',
@@ -245,7 +274,11 @@ export async function startDashboardOnly(): Promise<void> {
         'Supervisor decision intelligence with confidence scoring',
         'Workflow template library with execution management',
         'Multi-protocol architecture (A2A + LangGraph + MCP)',
-        'Enterprise-level debugging interfaces and system health monitoring'
+        'Enterprise-level debugging interfaces and system health monitoring',
+        'MCP Advanced Cockpit - Complete server lifecycle management',
+        'MCP tools ecosystem with testing, analytics, and registration',
+        'Real-time MCP resource monitoring and execution tracking',
+        'WebSocket-powered MCP live data streaming and alerts'
       ]
     });
   });
@@ -308,7 +341,22 @@ export async function startDashboardOnly(): Promise<void> {
     langGraphWsHandler.initialize(vegapunkGraph);
     logger.info('✅ LangGraph WebSocket handler initialized');
 
-    // 10. Initialize ShakaAgent Controller
+    // 10. Initialize MCP Services
+    const mcpServerManager = new MCPServerManager();
+    const mcpToolsService = new MCPToolsService();
+    await mcpServerManager.initialize();
+    logger.info('✅ MCP services initialized');
+
+    // 11. Initialize MCP API Routes
+    initializeMCPRoutes(mcpServerManager, mcpToolsService);
+    logger.info('✅ MCP API routes initialized');
+
+    // 12. Initialize MCP WebSocket Handler
+    const mcpWsHandler = new MCPWebSocketHandler(io);
+    mcpWsHandler.initialize(mcpServerManager, mcpToolsService);
+    logger.info('✅ MCP WebSocket handler initialized');
+
+    // 13. Initialize ShakaAgent Controller
     const shakaAgent = chatHandler.getShakaAgent();
     const shakaController = shakaAgent ? new ShakaController(shakaAgent) : null;
     if (shakaController) {
@@ -317,7 +365,7 @@ export async function startDashboardOnly(): Promise<void> {
       logger.warn('⚠️ ShakaAgent Controller not available - ShakaAgent not initialized');
     }
 
-    // 11. API Routes
+    // 14. API Routes
     app.get('/api/health', async (req, res) => {
       const health = await ollama.getHealthStatus();
       const models = await ollama.listModels();
@@ -665,6 +713,10 @@ export async function startDashboardOnly(): Promise<void> {
     app.use('/api/langgraph', langGraphRoutes);
     logger.info('🔄 LangGraph API routes registered');
 
+    // MCP API Routes
+    app.use('/api/mcp', mcpRoutes);
+    logger.info('🔧 MCP API routes registered');
+
     // 4. WebSocket for real-time chat
     io.on('connection', (socket) => {
       logger.info(`📱 Client connected: ${socket.id}`);
@@ -1006,6 +1058,12 @@ export async function startDashboardOnly(): Promise<void> {
         if (langGraphWsHandler) {
           langGraphWsHandler.cleanup();
           logger.info('✅ LangGraph WebSocket handler cleaned up');
+        }
+
+        // Cleanup MCP WebSocket handler
+        if (mcpWsHandler) {
+          mcpWsHandler.cleanup();
+          logger.info('✅ MCP WebSocket handler cleaned up');
         }
         
         // Cleanup VegapunkAgentGraph
