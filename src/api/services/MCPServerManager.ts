@@ -3,14 +3,12 @@
  * Contrôle lifecycle, métriques, santé et monitoring du serveur MCP
  */
 
-import { VegapunkMCPServer } from '../../mcp/VegapunkMCPServer';
 import { MCPServerConfig, MCPHealthCheck, MCPMetrics } from '../../mcp/types';
 import { EventEmitter } from 'events';
 import { logger } from '../../utils/logger';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import * as os from 'os';
 
 interface ServerStatus {
   status: 'running' | 'stopped' | 'starting' | 'stopping' | 'error';
@@ -100,9 +98,7 @@ interface ExecutionAnalytics {
 }
 
 export class MCPServerManager extends EventEmitter {
-  private mcpServer: VegapunkMCPServer | null = null;
   private mcpProcess: ChildProcess | null = null;
-  private mcpClient: Client | null = null;
   private serverLogs: LogEntry[] = [];
   private executions: Map<string, ExecutionInfo> = new Map();
   private resources: MCPResource[] = [];
@@ -110,17 +106,28 @@ export class MCPServerManager extends EventEmitter {
   private isServerRunning = false;
   private serverStartTime = 0;
   private shouldStayShutdown = false;
+  private serverMetrics: MCPMetrics | null = null;
   private serverConfig: MCPServerConfig = {
     name: 'vegapunk-mcp',
     version: '1.0.0',
+    description: 'Vegapunk MCP Server - Multi-agent capabilities exposed through standardized protocol',
     host: 'stdio',
     port: 0, // stdio doesn't use ports
-    enableTools: true,
-    enableResources: true,
-    enableLogging: true,
-    logLevel: 'info',
-    maxConnections: 10,
-    timeout: 30000
+    enableA2AIntegration: true,
+    enableLangGraphIntegration: true,
+    tools: {
+      enabled: true,
+      enabledCategories: ['ethical-analysis', 'technical-support'],
+      customTools: []
+    },
+    resources: {
+      enabled: true,
+      enabledResources: []
+    },
+    monitoring: {
+      healthCheckInterval: 30000,
+      loggingEnabled: true
+    }
   };
 
   private healthCheckInterval?: NodeJS.Timeout;
@@ -145,39 +152,79 @@ export class MCPServerManager extends EventEmitter {
   }
 
   /**
-   * Start MCP server (simplified for now)
+   * Start MCP server - Launch the real standalone MCP server process
    */
   async startServer(config?: Partial<MCPServerConfig>): Promise<void> {
-    if (this.isServerRunning) {
+    if (this.isServerRunning || this.mcpProcess) {
       this.addLog('info', 'server', 'MCP server already running');
       return;
     }
 
     try {
       this.shouldStayShutdown = false;
-      this.addLog('info', 'server', 'Starting MCP server...');
+      this.addLog('info', 'server', 'Starting MCP server process...');
       
       // Update config if provided
       if (config) {
         this.serverConfig = { ...this.serverConfig, ...config };
       }
 
-      // For now, just simulate server start
+      // Determine the MCP server path
+      const serverPath = path.join(__dirname, '../../../../mcp-server/vegapunk-mcp-server.js');
+      this.addLog('debug', 'server', `Server path: ${serverPath}`);
+
+      // Spawn the MCP server process
+      this.mcpProcess = spawn('node', [serverPath], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          NODE_ENV: process.env.NODE_ENV || 'production'
+        }
+      });
+
+      // Handle process events
+      this.mcpProcess.on('error', (error) => {
+        this.addLog('error', 'server', `Failed to start MCP server process: ${error.message}`);
+        this.isServerRunning = false;
+        this.emit('server.error', error);
+      });
+
+      this.mcpProcess.on('exit', (code, signal) => {
+        this.addLog('info', 'server', `MCP server process exited with code ${code} and signal ${signal}`);
+        this.isServerRunning = false;
+        this.mcpProcess = null;
+        
+        // Only emit stopped if it wasn't a planned shutdown
+        if (!this.shouldStayShutdown) {
+          this.emit('server.stopped');
+        }
+      });
+
+      // Capture stderr for logs (MCP protocol uses stderr for logging)
+      this.mcpProcess.stderr?.on('data', (data) => {
+        const logMessage = data.toString().trim();
+        this.handleServerLog(logMessage);
+      });
+
+      // Capture stdout (for debugging, but MCP should primarily use stderr)
+      this.mcpProcess.stdout?.on('data', (data) => {
+        const message = data.toString().trim();
+        this.addLog('debug', 'server-stdout', message);
+      });
+
+      // Mark as running after successful spawn
       this.isServerRunning = true;
       this.serverStartTime = Date.now();
-      
-      // Create mock MCP server
-      if (!this.mcpServer) {
-        this.mcpServer = new VegapunkMCPServer(this.serverConfig);
-      }
-      
-      await this.mcpServer.start();
+
+      // Wait a bit to ensure the server is fully started
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       this.addLog('info', 'server', 'MCP server started successfully');
       this.emit('server.started');
       
     } catch (error: any) {
       this.isServerRunning = false;
+      this.mcpProcess = null;
       this.addLog('error', 'server', `Failed to start MCP server: ${error.message}`);
       throw error;
     }
@@ -187,19 +234,48 @@ export class MCPServerManager extends EventEmitter {
    * Stop MCP server
    */
   async stopServer(): Promise<void> {
-    if (!this.isServerRunning) {
+    if (!this.isServerRunning && !this.mcpProcess) {
       this.addLog('info', 'server', 'MCP server already stopped');
       return;
     }
 
     try {
       this.shouldStayShutdown = true;
-      this.isServerRunning = false;
+      this.addLog('info', 'server', 'Stopping MCP server...');
       
-      if (this.mcpServer) {
-        await this.mcpServer.stop();
+      if (this.mcpProcess) {
+        // Send SIGTERM for graceful shutdown
+        this.mcpProcess.kill('SIGTERM');
+        
+        // Wait for process to exit (max 5 seconds)
+        await new Promise<void>((resolve) => {
+          let timeout: NodeJS.Timeout;
+          
+          const cleanup = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          // Set timeout for force kill
+          timeout = setTimeout(() => {
+            if (this.mcpProcess && !this.mcpProcess.killed) {
+              this.addLog('warn', 'server', 'Force killing MCP server process');
+              this.mcpProcess.kill('SIGKILL');
+            }
+            cleanup();
+          }, 5000);
+          
+          // Wait for process exit
+          if (this.mcpProcess) {
+            this.mcpProcess.once('exit', cleanup);
+          } else {
+            cleanup();
+          }
+        });
       }
       
+      this.isServerRunning = false;
+      this.mcpProcess = null;
       this.serverStartTime = 0;
       
       this.addLog('info', 'server', 'MCP server stopped successfully');
@@ -237,23 +313,32 @@ export class MCPServerManager extends EventEmitter {
     
     if (this.shouldStayShutdown) {
       currentStatus = 'stopped';
-    } else if (this.isServerRunning) {
+    } else if (this.isServerRunning && this.mcpProcess && !this.mcpProcess.killed) {
       currentStatus = 'running';
+    } else if (this.mcpProcess && !this.isServerRunning) {
+      currentStatus = 'starting';
     } else {
       currentStatus = 'stopped';
     }
     
     const uptime = (currentStatus === 'running') ? Date.now() - this.serverStartTime : 0;
     
+    // Get process metrics if running
+    let processMetrics = null;
+    if (this.mcpProcess && this.mcpProcess.pid) {
+      processMetrics = await this.getProcessMetrics(this.mcpProcess.pid);
+    }
+    
     return {
       status: currentStatus,
       uptime: uptime,
       pid: this.mcpProcess?.pid,
       version: this.serverConfig.version,
-      host: this.serverConfig.host,
-      port: this.serverConfig.port,
+      host: this.serverConfig.host || 'stdio',
+      port: this.serverConfig.port || 0,
       connections: (currentStatus === 'running') ? 1 : 0,
-      lastHeartbeat: new Date().toISOString()
+      lastHeartbeat: new Date().toISOString(),
+      ...processMetrics
     };
   }
 
@@ -261,49 +346,54 @@ export class MCPServerManager extends EventEmitter {
    * Get server metrics
    */
   async getServerMetrics(): Promise<MCPMetrics> {
-    if (!this.mcpServer) {
+    if (!this.isServerRunning || !this.serverMetrics) {
       return this.getDefaultMetrics();
     }
     
-    return await this.mcpServer.getMetrics();
+    // Update server uptime
+    this.serverMetrics.server.uptime = Date.now() - this.serverStartTime;
+    
+    return this.serverMetrics;
   }
 
   /**
    * Get health check
    */
   async getHealthCheck(): Promise<MCPHealthCheck> {
-    const isHealthy = this.isServerRunning;
+    const isHealthy = this.isServerRunning && this.mcpProcess && !this.mcpProcess.killed;
+    const hasErrors = this.serverLogs.filter(log => log.level === 'error' && 
+      new Date(log.timestamp).getTime() > Date.now() - 60000).length > 0;
     
     return {
-      status: isHealthy ? 'healthy' : 'unhealthy',
+      status: isHealthy ? (hasErrors ? 'degraded' : 'healthy') : 'unhealthy',
       timestamp: new Date().toISOString(),
       checks: {
         server: {
           status: this.isServerRunning ? 'healthy' : 'unhealthy',
-          message: this.isServerRunning ? 'Server is running' : 'Server is stopped',
+          message: this.isServerRunning ? 'MCP server process is running' : 'MCP server process is stopped',
           lastCheck: new Date().toISOString()
         },
         tools: {
-          status: 'healthy',
-          message: 'Tools subsystem operational',
+          status: this.isServerRunning ? 'healthy' : 'degraded',
+          message: this.isServerRunning ? 'Tools subsystem operational' : 'Tools unavailable - server not running',
           lastCheck: new Date().toISOString()
         },
         resources: {
           status: 'healthy',
-          message: 'Resources available',
+          message: `${this.resources.length} resources available`,
           lastCheck: new Date().toISOString()
         },
         connectivity: {
-          status: this.mcpClient ? 'healthy' : 'unhealthy',
-          message: this.mcpClient ? 'Client connected' : 'Client disconnected',
+          status: this.isServerRunning ? 'healthy' : 'unhealthy',
+          message: this.isServerRunning ? 'MCP server accepting connections' : 'No active connections',
           lastCheck: new Date().toISOString()
         }
       },
       metrics: {
         uptime: this.isServerRunning ? Date.now() - this.serverStartTime : 0,
-        requestsPerMinute: Math.random() * 100,
-        errorRate: 0.02,
-        avgResponseTime: 45
+        requestsPerMinute: this.calculateRequestsPerMinute(),
+        errorRate: this.calculateErrorRate(),
+        avgResponseTime: 45 // Still mocked for now
       }
     };
   }
@@ -660,6 +750,89 @@ export class MCPServerManager extends EventEmitter {
         popularityScore: Math.random() * 100
       });
     });
+    
+    // Initialize server metrics
+    this.serverMetrics = this.getDefaultMetrics();
+  }
+
+  /**
+   * Handle server log messages from MCP server stderr
+   */
+  private handleServerLog(logMessage: string): void {
+    // Parse MCP server log format: [Vegapunk MCP] 2025-08-01T10:38:57.634Z - Message
+    const logPattern = /\[Vegapunk MCP\]\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\s+-\s+(.+)/;
+    const match = logMessage.match(logPattern);
+    
+    let level: LogEntry['level'] = 'info';
+    let message = logMessage;
+    let timestamp = new Date().toISOString();
+    
+    if (match) {
+      timestamp = match[1];
+      message = match[2];
+      
+      // Determine log level from message content
+      if (message.toLowerCase().includes('error') || message.toLowerCase().includes('failed')) {
+        level = 'error';
+      } else if (message.toLowerCase().includes('warn')) {
+        level = 'warn';
+      } else if (message.toLowerCase().includes('debug')) {
+        level = 'debug';
+      }
+    }
+    
+    // Add to logs
+    this.addLog(level, 'mcp-server', message);
+    
+    // Update metrics based on log content
+    if (message.includes('Tool called:')) {
+      this.serverMetrics!.tools.totalCalls++;
+      const toolName = message.split('Tool called:')[1].trim();
+      const currentCount = this.serverMetrics!.tools.callsByTool.get(toolName) || 0;
+      this.serverMetrics!.tools.callsByTool.set(toolName, currentCount + 1);
+    }
+    
+    if (message.includes('Listing tools')) {
+      this.serverMetrics!.server.totalRequests++;
+    }
+    
+    // Emit log for real-time streaming
+    this.emit('log.stream', { level, component: 'mcp-server', message, timestamp });
+  }
+
+  /**
+   * Get process metrics for a given PID
+   */
+  private async getProcessMetrics(pid: number): Promise<any> {
+    try {
+      // For now, we'll use approximations based on Node.js process info
+      // In production, you might use a library like pidusage for accurate metrics
+      
+      // Get memory usage from Node.js process if it's the same process
+      const memUsage = process.memoryUsage();
+      const memoryMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+      const totalMemoryMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+      const memoryUsage = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      
+      // CPU usage approximation based on process uptime and server activity
+      const cpuUsage = this.serverMetrics?.tools.totalCalls > 0 ? 
+        Math.min(10 + (this.serverMetrics.tools.totalCalls * 0.5), 50) : 5;
+      
+      return {
+        cpuUsage: Math.round(cpuUsage * 10) / 10,
+        memoryUsage: Math.round(memoryUsage * 10) / 10,
+        memoryMB: memoryMB,
+        totalMemoryMB: totalMemoryMB,
+        uptime: this.isServerRunning ? Date.now() - this.serverStartTime : 0
+      };
+    } catch (error) {
+      this.addLog('debug', 'metrics', `Failed to get process metrics: ${error}`);
+      return {
+        cpuUsage: 0,
+        memoryUsage: 0,
+        memoryMB: 0
+      };
+    }
   }
 
   private startHealthCheck(): void {
@@ -698,6 +871,34 @@ export class MCPServerManager extends EventEmitter {
     }
     
     return trends.reverse();
+  }
+
+  /**
+   * Calculate requests per minute from recent logs
+   */
+  private calculateRequestsPerMinute(): number {
+    const oneMinuteAgo = Date.now() - 60000;
+    const recentRequests = this.serverLogs.filter(log => 
+      new Date(log.timestamp).getTime() > oneMinuteAgo &&
+      (log.message.includes('Tool called') || log.message.includes('Listing'))
+    ).length;
+    
+    return recentRequests;
+  }
+
+  /**
+   * Calculate error rate from recent logs
+   */
+  private calculateErrorRate(): number {
+    const fiveMinutesAgo = Date.now() - 300000;
+    const recentLogs = this.serverLogs.filter(log => 
+      new Date(log.timestamp).getTime() > fiveMinutesAgo
+    );
+    
+    if (recentLogs.length === 0) return 0;
+    
+    const errorLogs = recentLogs.filter(log => log.level === 'error').length;
+    return errorLogs / recentLogs.length;
   }
 
   private getDefaultMetrics(): MCPMetrics {

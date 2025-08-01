@@ -1,0 +1,27 @@
+{
+  "name": "vegapunk-mcp-server",
+  "version": "1.0.0",
+  "description": "Vegapunk MCP Server - Multi-agent capabilities for Claude Desktop",
+  "type": "module",
+  "main": "vegapunk-mcp-server.js",
+  "scripts": {
+    "start": "node vegapunk-mcp-server.js",
+    "test": "node test-server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "vegapunk",
+    "claude",
+    "ai",
+    "multi-agent"
+  ],
+  "author": "Vegapunk Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

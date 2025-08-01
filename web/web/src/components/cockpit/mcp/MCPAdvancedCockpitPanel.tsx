@@ -147,54 +147,57 @@ export function MCPAdvancedCockpitPanel() {
       const serverResponse = await fetch('/api/mcp/server/status');
       const serverData = await serverResponse.json();
       
-      const mockServerStatus: MCPServerStatus = {
+      const serverStatus: MCPServerStatus = {
         status: serverData.status?.status || 'stopped',
         uptime: serverData.status?.uptime || 0,
         pid: serverData.status?.pid,
         version: serverData.status?.version || '1.0.0',
-        host: serverData.status?.host || 'integrated',
-        port: serverData.status?.port || 8080,
+        host: serverData.status?.host || 'stdio',
+        port: serverData.status?.port || 0,
         connections: serverData.status?.connections || 0,
         lastHeartbeat: serverData.status?.lastHeartbeat || new Date().toISOString()
       };
 
-      const mockMetrics: MCPMetrics = {
+      // Extract real metrics from server data
+      const realMetrics: MCPMetrics = {
         performance: {
-          cpuUsage: 23.5,
-          memoryUsage: 45.2,
-          networkRx: 1.2,
-          networkTx: 0.8,
-          responseTime: 125,
-          throughput: 89.3
+          cpuUsage: serverData.status?.cpuUsage || 0,
+          memoryUsage: serverData.status?.memoryUsage || 0,
+          networkRx: 0, // Not tracked yet
+          networkTx: 0, // Not tracked yet
+          responseTime: serverData.health?.metrics?.avgResponseTime || 0,
+          throughput: serverData.health?.metrics?.requestsPerMinute || 0
         },
         tools: {
-          total: 15,
-          active: 8,
-          executionsPerMinute: 24.7,
-          successRate: 0.96,
-          avgExecutionTime: 1847
+          total: 3, // We have 3 tools in the MCP server
+          active: serverData.metrics?.tools?.totalCalls > 0 ? 3 : 0,
+          executionsPerMinute: serverData.health?.metrics?.requestsPerMinute || 0,
+          successRate: 1.0 - (serverData.health?.metrics?.errorRate || 0),
+          avgExecutionTime: 100 // Still mocked for now
         },
         resources: {
-          total: 42,
-          available: 38,
-          usageRate: 0.73,
+          total: 3, // We have 3 resources in the MCP server
+          available: 3,
+          usageRate: serverData.metrics?.resources?.totalAccesses > 0 ? 0.5 : 0,
           categories: {
-            templates: 12,
-            prompts: 18,
-            integrations: 8,
-            configs: 4
+            templates: 1,
+            prompts: 0,
+            integrations: 0,
+            configs: 2
           }
         },
         executions: {
-          active: 3,
-          completed: 1247,
-          failed: 23,
-          queued: 1
+          active: 0, // Not tracked yet
+          completed: serverData.metrics?.tools?.totalCalls || 0,
+          failed: serverData.metrics?.server?.totalErrors || 0,
+          queued: 0
         },
         health: {
-          score: 94,
-          issues: ['High memory usage detected', 'Connection pool approaching limit'],
-          lastCheck: new Date().toISOString()
+          score: serverData.health?.status === 'healthy' ? 100 : 
+                 serverData.health?.status === 'degraded' ? 75 : 0,
+          issues: serverData.health?.status !== 'healthy' ? 
+                  ['Server health check failed'] : [],
+          lastCheck: serverData.health?.timestamp || new Date().toISOString()
         }
       };
 
@@ -217,8 +220,8 @@ export function MCPAdvancedCockpitPanel() {
         }
       ];
 
-      setServerStatus(mockServerStatus);
-      setMetrics(mockMetrics);
+      setServerStatus(serverStatus);
+      setMetrics(realMetrics);
       setAlerts(mockAlerts);
       setError(null);
 

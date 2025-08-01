@@ -177,8 +177,8 @@ export class VegapunkMCPServer extends EventEmitter implements MCPServer {
       technicalTool.getDefinition()
     ];
 
-    // Add custom tools from config
-    if (this.config.tools.customTools) {
+    // Add custom tools from config if available
+    if (this.config.tools && this.config.tools.customTools) {
       this.tools.push(...this.config.tools.customTools);
     }
 

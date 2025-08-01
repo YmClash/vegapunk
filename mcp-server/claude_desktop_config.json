@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "vegapunk-mcp": {
+      "command": "node",
+      "args": [
+        "/mnt/c/Users/y_mc/WebstormProjects/vegapunk/mcp-server/vegapunk-mcp-server.js"
+      ],
+      "env": {},
+      "cwd": "/mnt/c/Users/y_mc/WebstormProjects/vegapunk/mcp-server"
+    }
+  }
+}

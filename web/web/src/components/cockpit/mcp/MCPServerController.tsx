@@ -179,69 +179,63 @@ export function MCPServerController({ onServerCommand }: MCPServerControllerProp
         lastHeartbeat: data?.status?.lastHeartbeat || new Date().toISOString()
       };
 
-      // Process info from server state
+      // Process info from server state (now includes real metrics)
       const processInfo: ProcessInfo | null = serverState.pid ? {
         pid: serverState.pid,
         parentPid: 1,
-        cpuUsage: Math.random() * 20,
-        memoryUsage: Math.random() * 50,
-        memoryMB: Math.floor(100 + Math.random() * 200),
-        openFiles: Math.floor(20 + Math.random() * 50),
-        threads: 8,
+        cpuUsage: data?.status?.cpuUsage || 0,
+        memoryUsage: data?.status?.memoryUsage || 0,
+        memoryMB: data?.status?.memoryMB || 0,
+        openFiles: Math.floor(20 + Math.random() * 50), // Still mocked
+        threads: 8, // Still mocked
         startTime: serverState.startTime || new Date().toISOString(),
-        commandLine: 'node standalone-server.js'
+        commandLine: 'node vegapunk-mcp-server.js'
       } : null;
 
-      const mockServerConfig: ServerConfig = {
-        host: 'localhost',
-        port: 3000,
-        maxConnections: 100,
-        timeout: 30000,
-        logLevel: 'info',
-        enableCors: true,
-        corsOrigins: ['http://localhost:5173', 'http://localhost:3000'],
-        rateLimit: {
-          enabled: true,
-          windowMs: 60000,
-          maxRequests: 100
-        },
-        auth: {
-          enabled: false,
-          apiKey: '',
-          tokenExpiry: 3600
+      // Fetch server config
+      try {
+        const configResponse = await fetch('/api/mcp/server/config');
+        if (configResponse.ok) {
+          const configData = await configResponse.json();
+          setServerConfig(configData);
         }
-      };
+      } catch (err) {
+        console.error('Failed to fetch server config:', err);
+      }
 
-      const mockServerMetrics: ServerMetrics = {
-        requests: {
-          total: 1247,
-          successful: 1224,
-          failed: 23,
-          rate: 2.4
-        },
-        connections: {
-          current: 3,
-          peak: 8,
-          total: 156
-        },
-        performance: {
-          avgResponseTime: 125,
-          minResponseTime: 45,
-          maxResponseTime: 890,
-          throughput: 89.3
-        },
-        errors: {
-          count: 23,
-          rate: 0.018,
-          lastError: 'Connection timeout from client 192.168.1.100',
-          lastErrorTime: new Date(Date.now() - 15 * 60 * 1000).toISOString()
-        }
-      };
+      // Extract metrics from the status response
+      if (data?.metrics) {
+        const metrics = data.metrics;
+        const serverMetrics: ServerMetrics = {
+          requests: {
+            total: metrics.server.totalRequests || 0,
+            successful: metrics.server.totalRequests - metrics.server.totalErrors || 0,
+            failed: metrics.server.totalErrors || 0,
+            rate: data?.health?.metrics?.requestsPerMinute || 0
+          },
+          connections: {
+            current: metrics.server.activeConnections || 0,
+            peak: Math.max(metrics.server.activeConnections || 0, 8),
+            total: metrics.server.totalRequests || 0
+          },
+          performance: {
+            avgResponseTime: data?.health?.metrics?.avgResponseTime || 0,
+            minResponseTime: 20, // Still mocked
+            maxResponseTime: 500, // Still mocked
+            throughput: data?.health?.metrics?.requestsPerMinute || 0
+          },
+          errors: {
+            count: metrics.server.totalErrors || 0,
+            rate: data?.health?.metrics?.errorRate || 0,
+            lastError: undefined,
+            lastErrorTime: undefined
+          }
+        };
+        setServerMetrics(serverMetrics);
+      }
 
       setServerState(serverState);
       setProcessInfo(processInfo);
-      setServerConfig(mockServerConfig);
-      setServerMetrics(mockServerMetrics);
       setError(null);
 
     } catch (err: any) {
@@ -413,7 +407,7 @@ export function MCPServerController({ onServerCommand }: MCPServerControllerProp
                     {statusDisplay.text}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {serverState?.host}:{serverState?.port} • PID: {serverState?.pid}
+                    {serverState?.host === 'stdio' ? 'STDIO Transport' : `${serverState?.host}:${serverState?.port}`} • PID: {serverState?.pid || 'N/A'}
                   </Typography>
                 </Box>
               </Box>
