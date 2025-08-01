@@ -338,6 +338,19 @@ export class MCPWebSocketHandler {
       this.broadcastToNamespace('/api/mcp/server/live', 'mcp-server-stopped', {});
     });
 
+    this.mcpServerManager.on('server.error', (error) => {
+      this.broadcastToNamespace('/api/mcp/server/live', 'mcp-server-error', { error: error.message });
+    });
+
+    // Log streaming events - NEW
+    this.mcpServerManager.on('log.stream', (logEntry) => {
+      this.broadcastToNamespace('/api/mcp/logs/live', 'mcp-logs-new', { log: logEntry });
+    });
+
+    this.mcpServerManager.on('log', (logEntry) => {
+      this.broadcastToNamespace('/api/mcp/logs/live', 'mcp-logs-new', { log: logEntry });
+    });
+
     // Tool events
     this.mcpToolsService.on('tool.tested', (toolId, result) => {
       this.broadcastToNamespace('/api/mcp/executions/live', 'mcp-tool-tested', { toolId, result });
@@ -379,42 +392,25 @@ export class MCPWebSocketHandler {
     if (!this.mcpServerManager) return;
 
     try {
+      // Get real logs from MCP server
       const logs = await this.mcpServerManager.getServerLogs({
         level: 'all',
-        limit: 50
+        limit: 100 // Increased limit for more logs
       });
       
-      // Simulate new log entry occasionally
-      if (Math.random() < 0.3) {
-        const levels = ['info', 'warn', 'error', 'debug'];
-        const components = ['server', 'tools', 'resources', 'executions'];
-        const messages = [
-          'Tool execution completed successfully',
-          'Resource accessed by client',
-          'Server health check passed',
-          'New tool registered in system',
-          'Execution metrics updated',
-          'Configuration change detected'
-        ];
-
-        const newLog = {
-          id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          timestamp: new Date().toISOString(),
-          level: levels[Math.floor(Math.random() * levels.length)],
-          component: components[Math.floor(Math.random() * components.length)],
-          message: messages[Math.floor(Math.random() * messages.length)]
-        };
-
-        socket.emit('mcp-logs-new', { log: newLog });
-      }
-
+      // Send the actual logs
       socket.emit('mcp-logs-update', {
         logs,
         total: logs.length,
         timestamp: new Date().toISOString()
       });
+      
+      // Note: New logs are now streamed in real-time via the log.stream event
+      // No need for simulated logs anymore
+      
     } catch (error) {
       logger.error('Error getting logs:', error);
+      socket.emit('mcp-logs-error', { error: 'Failed to fetch logs' });
     }
   }
 
