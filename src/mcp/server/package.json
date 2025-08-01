@@ -1,0 +1,14 @@
+{
+  "name": "vegapunk-mcp-server",
+  "version": "1.0.0",
+  "description": "Vegapunk MCP Standalone Server",
+  "type": "module",
+  "main": "standalone-server.js",
+  "scripts": {
+    "build": "tsc standalone-server.ts --module esnext --target es2020 --moduleResolution node --allowSyntheticDefaultImports --esModuleInterop",
+    "start": "node standalone-server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1"
+  }
+}
