@@ -310,8 +310,10 @@ export function MCPAdvancedCockpitPanel() {
       const result = await response.json();
       console.log(`Server ${command} result:`, result);
       
-      // Refresh data after command
-      setTimeout(() => fetchMCPData(), 1000);
+      // Refresh data immediately and after a delay
+      fetchMCPData();
+      setTimeout(() => fetchMCPData(), 2000);
+      setTimeout(() => fetchMCPData(), 5000);
       
     } catch (error) {
       console.error(`Error ${command} server:`, error);

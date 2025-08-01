@@ -350,6 +350,10 @@ export async function startDashboardOnly(): Promise<void> {
     // 11. Initialize MCP API Routes
     initializeMCPRoutes(mcpServerManager, mcpToolsService);
     logger.info('✅ MCP API routes initialized');
+    
+    // 11b. Register MCP routes immediately after initialization
+    app.use('/api/mcp', mcpRoutes);
+    logger.info('🔧 MCP API routes registered immediately after initialization');
 
     // 12. Initialize MCP WebSocket Handler
     const mcpWsHandler = new MCPWebSocketHandler(io);
@@ -712,10 +716,9 @@ export async function startDashboardOnly(): Promise<void> {
     // LangGraph API Routes
     app.use('/api/langgraph', langGraphRoutes);
     logger.info('🔄 LangGraph API routes registered');
-
-    // MCP API Routes
-    app.use('/api/mcp', mcpRoutes);
-    logger.info('🔧 MCP API routes registered');
+    
+    // MCP API Routes - Already registered after initialization
+    // (see line 355 - registered immediately after initializeMCPRoutes)
 
     // 4. WebSocket for real-time chat
     io.on('connection', (socket) => {
