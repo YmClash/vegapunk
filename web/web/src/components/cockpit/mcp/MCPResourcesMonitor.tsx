@@ -198,182 +198,156 @@ export function MCPResourcesMonitor() {
     try {
       setIsLoading(true);
       
-      // Mock data for development - replace with actual API calls
-      const mockResources: MCPResource[] = [
+      // Fetch real resources from API
+      const response = await fetch('/api/mcp/resources/list');
+      if (!response.ok) {
+        throw new Error('Failed to fetch resources');
+      }
+      
+      const data = await response.json();
+      
+      // Transform API data to MCPResource format
+      const resources: MCPResource[] = data.resources.map((resource: any, index: number) => ({
+        id: resource.id || `resource-${index}`,
+        name: resource.name || 'Unknown Resource',
+        description: resource.description || 'No description available',
+        category: (resource.category || 'templates') as MCPResource['category'],
+        type: resource.mimeType || 'unknown',
+        version: resource.version || '1.0.0',
+        author: resource.metadata?.author || 'Vegapunk System',
+        isPublic: true,
+        size: resource.size || 0,
+        createdAt: resource.lastModified || new Date().toISOString(),
+        updatedAt: resource.lastModified || new Date().toISOString(),
+        usage: {
+          totalAccesses: data.usage?.[resource.id]?.accessCount || 0,
+          lastAccessed: data.usage?.[resource.id]?.lastAccessed || new Date().toISOString(),
+          accessFrequency: data.usage?.[resource.id]?.avgAccessTime || 0,
+          popularityScore: data.usage?.[resource.id]?.popularityScore || 0
+        },
+        status: 'active' as const,
+        tags: resource.metadata?.tags || [],
+        metadata: resource.metadata || {},
+        content: resource.content,
+        preview: resource.preview
+      }));
+      
+      // If no resources from API, use the actual MCP server resources
+      const realResources: MCPResource[] = resources.length > 0 ? resources : [
         {
-          id: 'template-001',
-          name: 'API Response Template',
-          description: 'Standard JSON API response template with error handling',
+          id: 'res_001',
+          name: 'System Architecture Documentation',
+          description: 'Complete system architecture and design documentation for Vegapunk',
           category: 'templates',
-          type: 'json-template',
-          version: '2.1.0',
-          author: 'DevTeam',
+          type: 'text/markdown',
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
+          isPublic: true,
+          size: 4096,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          usage: {
+            totalAccesses: 0,
+            lastAccessed: new Date().toISOString(),
+            accessFrequency: 0,
+            popularityScore: 0
+          },
+          status: 'active',
+          tags: ['architecture', 'documentation', 'design'],
+          metadata: {},
+          preview: '# Vegapunk System Architecture\n\nMulti-agent AI system...'
+        },
+        {
+          id: 'res_002',
+          name: 'Agent Capabilities Matrix',
+          description: 'Detailed capabilities and specializations of Vegapunk agents',
+          category: 'configs',
+          type: 'application/json',
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
           isPublic: true,
           size: 2048,
-          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           usage: {
-            totalAccesses: 1847,
-            lastAccessed: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            accessFrequency: 45.2,
-            popularityScore: 92
+            totalAccesses: 0,
+            lastAccessed: new Date().toISOString(),
+            accessFrequency: 0,
+            popularityScore: 0
           },
           status: 'active',
-          tags: ['api', 'json', 'template', 'popular'],
-          metadata: {
-            dependencies: ['json-schema'],
-            compatibility: ['v2.x', 'v3.x'],
-            parameters: { format: 'json', version: '2.1' }
-          },
-          preview: '{"status": "success", "data": {...}, "meta": {...}}'
+          tags: ['agents', 'capabilities', 'configuration'],
+          metadata: {},
+          preview: '{\n  "agents": [\n    {\n      "name": "Shaka",\n      "capabilities": [...]\n    }\n  ]\n}'
         },
         {
-          id: 'prompt-001',
-          name: 'Code Review Prompt',
-          description: 'Comprehensive code review prompt for AI assistants',
-          category: 'prompts',
-          type: 'ai-prompt',
-          version: '1.3.0',
-          author: 'AI Team',
-          isPublic: true,
-          size: 1536,
-          createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-          usage: {
-            totalAccesses: 892,
-            lastAccessed: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-            accessFrequency: 23.1,
-            popularityScore: 78
-          },
-          status: 'active',
-          tags: ['code-review', 'ai', 'prompt', 'quality'],
-          metadata: {
-            parameters: { language: 'any', style: 'comprehensive' }
-          },
-          preview: 'Please review the following code for...'
-        },
-        {
-          id: 'integration-001',
-          name: 'Slack Notification Integration',
-          description: 'Send notifications to Slack channels with rich formatting',
-          category: 'integrations',
-          type: 'webhook-integration',
-          version: '1.0.2',
-          author: 'Integration Team',
-          isPublic: false,
-          size: 4096,
-          createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-          usage: {
-            totalAccesses: 456,
-            lastAccessed: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-            accessFrequency: 12.7,
-            popularityScore: 65
-          },
-          status: 'active',
-          tags: ['slack', 'notification', 'webhook', 'integration'],
-          metadata: {
-            dependencies: ['slack-api'],
-            parameters: { webhookUrl: 'required', channel: 'optional' }
-          },
-          preview: 'Slack webhook integration configuration...'
-        },
-        {
-          id: 'config-001',
-          name: 'Production Environment Config',
-          description: 'Production environment configuration with security settings',
-          category: 'configs',
-          type: 'env-config',
-          version: '3.2.1',
-          author: 'DevOps',
-          isPublic: false,
-          size: 3072,
-          createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          usage: {
-            totalAccesses: 234,
-            lastAccessed: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-            accessFrequency: 5.8,
-            popularityScore: 45
-          },
-          status: 'active',
-          tags: ['production', 'config', 'security', 'environment'],
-          metadata: {
-            compatibility: ['prod-v3.x'],
-            parameters: { env: 'production', secure: true }
-          },
-          preview: 'Environment configuration for production deployment...'
-        },
-        {
-          id: 'template-002',
-          name: 'Legacy Data Transformer',
-          description: 'Transform legacy data formats to modern schemas',
+          id: 'res_003',
+          name: 'Workflow Templates',
+          description: 'Pre-configured workflow templates for common multi-agent tasks',
           category: 'templates',
-          type: 'data-template',
-          version: '0.9.5',
-          author: 'Legacy Team',
+          type: 'application/json',
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
           isPublic: true,
           size: 1024,
-          createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           usage: {
-            totalAccesses: 89,
-            lastAccessed: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-            accessFrequency: 1.2,
-            popularityScore: 28
+            totalAccesses: 0,
+            lastAccessed: new Date().toISOString(),
+            accessFrequency: 0,
+            popularityScore: 0
           },
-          status: 'deprecated',
-          tags: ['legacy', 'transform', 'data', 'deprecated'],
-          metadata: {
-            parameters: { inputFormat: 'legacy', outputFormat: 'modern' }
-          },
-          preview: 'Legacy data transformation template...'
+          status: 'active',
+          tags: ['workflows', 'templates', 'orchestration'],
+          metadata: {},
+          preview: '[\n  {\n    "name": "ethical-review",\n    "steps": [...]\n  }\n]'
         }
       ];
 
-      const mockResourceAnalytics: ResourceAnalytics = {
-        totalResources: mockResources.length,
+      const realResourceAnalytics: ResourceAnalytics = {
+        totalResources: realResources.length,
         byCategory: {
-          templates: mockResources.filter(r => r.category === 'templates').length,
-          prompts: mockResources.filter(r => r.category === 'prompts').length,
-          integrations: mockResources.filter(r => r.category === 'integrations').length,
-          configs: mockResources.filter(r => r.category === 'configs').length
+          templates: realResources.filter(r => r.category === 'templates').length,
+          prompts: realResources.filter(r => r.category === 'prompts').length,
+          integrations: realResources.filter(r => r.category === 'integrations').length,
+          configs: realResources.filter(r => r.category === 'configs').length
         },
         byStatus: {
-          active: mockResources.filter(r => r.status === 'active').length,
-          archived: mockResources.filter(r => r.status === 'archived').length,
-          deprecated: mockResources.filter(r => r.status === 'deprecated').length,
-          draft: mockResources.filter(r => r.status === 'draft').length
+          active: realResources.filter(r => r.status === 'active').length,
+          archived: realResources.filter(r => r.status === 'archived').length,
+          deprecated: realResources.filter(r => r.status === 'deprecated').length,
+          draft: realResources.filter(r => r.status === 'draft').length
         },
-        popularResources: mockResources
+        popularResources: realResources
           .sort((a, b) => b.usage.popularityScore - a.usage.popularityScore)
           .slice(0, 3),
-        recentlyUpdated: mockResources
+        recentlyUpdated: realResources
           .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
           .slice(0, 3),
         usageTrends: [
-          { date: '2025-07-19', accesses: 234, resources: 45 },
-          { date: '2025-07-20', accesses: 267, resources: 48 },
-          { date: '2025-07-21', accesses: 189, resources: 42 },
-          { date: '2025-07-22', accesses: 298, resources: 51 },
-          { date: '2025-07-23', accesses: 312, resources: 53 }
+          { date: new Date().toISOString().split('T')[0], accesses: 0, resources: realResources.length },
+          { date: new Date(Date.now() - 86400000).toISOString().split('T')[0], accesses: 0, resources: realResources.length },
+          { date: new Date(Date.now() - 172800000).toISOString().split('T')[0], accesses: 0, resources: realResources.length },
+          { date: new Date(Date.now() - 259200000).toISOString().split('T')[0], accesses: 0, resources: realResources.length },
+          { date: new Date(Date.now() - 345600000).toISOString().split('T')[0], accesses: 0, resources: realResources.length }
         ],
         storageUsage: {
           total: 1024 * 1024 * 100, // 100MB
-          used: 1024 * 1024 * 23, // 23MB
-          available: 1024 * 1024 * 77, // 77MB
+          used: realResources.reduce((sum, r) => sum + r.size, 0),
+          available: 1024 * 1024 * 100 - realResources.reduce((sum, r) => sum + r.size, 0),
           byCategory: {
-            templates: 1024 * 8, // 8KB
-            prompts: 1024 * 6, // 6KB
-            integrations: 1024 * 5, // 5KB
-            configs: 1024 * 4 // 4KB
+            templates: realResources.filter(r => r.category === 'templates').reduce((sum, r) => sum + r.size, 0),
+            prompts: realResources.filter(r => r.category === 'prompts').reduce((sum, r) => sum + r.size, 0),
+            integrations: realResources.filter(r => r.category === 'integrations').reduce((sum, r) => sum + r.size, 0),
+            configs: realResources.filter(r => r.category === 'configs').reduce((sum, r) => sum + r.size, 0)
           }
         }
       };
 
-      setResources(mockResources);
-      setFilteredResources(mockResources);
-      setResourceAnalytics(mockResourceAnalytics);
+      setResources(realResources);
+      setFilteredResources(realResources);
+      setResourceAnalytics(realResourceAnalytics);
       setError(null);
 
     } catch (err) {

@@ -169,9 +169,15 @@ export class MCPServerManager extends EventEmitter {
         this.serverConfig = { ...this.serverConfig, ...config };
       }
 
-      // Determine the MCP server path
-      const serverPath = path.join(__dirname, '../../../../mcp-server/vegapunk-mcp-server.js');
+      // Determine the MCP server path - accounting for compiled TypeScript in dist folder
+      const serverPath = path.join(__dirname, '../../../mcp-server/vegapunk-mcp-server.js');
       this.addLog('debug', 'server', `Server path: ${serverPath}`);
+      
+      // Verify the server file exists
+      const fs = require('fs');
+      if (!fs.existsSync(serverPath)) {
+        throw new Error(`MCP server not found at: ${serverPath}`);
+      }
 
       // Spawn the MCP server process
       this.mcpProcess = spawn('node', [serverPath], {

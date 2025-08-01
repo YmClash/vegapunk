@@ -164,123 +164,108 @@ export function MCPToolsManager() {
     try {
       setIsLoading(true);
       
-      // Mock data for development - replace with actual API calls
-      const mockTools: MCPTool[] = [
+      // Fetch real tools data from API
+      const response = await fetch('/api/mcp/tools/list');
+      if (!response.ok) {
+        throw new Error('Failed to fetch tools');
+      }
+      
+      const data = await response.json();
+      
+      // Transform API data to MCPTool format
+      const tools: MCPTool[] = data.tools.map((tool: any, index: number) => ({
+        id: tool.name || `tool-${index}`,
+        name: tool.name || 'Unknown Tool',
+        description: tool.description || 'No description available',
+        category: tool.metadata?.category || 'general',
+        version: tool.metadata?.version || '1.0.0',
+        author: tool.metadata?.author || 'Vegapunk System',
+        isPublic: true,
+        parameters: tool.inputSchema?.properties ? 
+          Object.entries(tool.inputSchema.properties).map(([key, value]: [string, any]) => ({
+            name: key,
+            type: value.type || 'string',
+            required: tool.inputSchema.required?.includes(key) || false,
+            description: value.description || '',
+            default: value.default
+          })) : [],
+        usage: {
+          totalExecutions: data.usage?.[tool.name]?.totalCalls || 0,
+          successRate: data.usage?.[tool.name]?.successRate || 1.0,
+          avgExecutionTime: data.usage?.[tool.name]?.avgExecutionTime || 100,
+          lastUsed: data.usage?.[tool.name]?.lastUsed || new Date().toISOString()
+        },
+        status: 'active',
+        tags: tool.metadata?.tags || [],
+        documentation: tool.metadata?.documentation || ''
+      }));
+      
+      // If no tools from API, use the actual MCP server tools
+      const realTools: MCPTool[] = tools.length > 0 ? tools : [
         {
-          id: 'file-reader',
-          name: 'File Reader',
-          description: 'Read and parse various file formats including text, JSON, CSV, and XML',
-          category: 'data',
-          version: '2.1.0',
-          author: 'VegapunkAI',
+          id: 'vegapunk_chat',
+          name: 'vegapunk_chat',
+          description: 'Chat with Vegapunk AI assistant for technical and ethical guidance',
+          category: 'communication',
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
           isPublic: true,
           parameters: [
-            { name: 'filePath', type: 'string', required: true, description: 'Path to the file to read' },
-            { name: 'encoding', type: 'string', required: false, description: 'File encoding', default: 'utf-8' },
-            { name: 'parseJson', type: 'boolean', required: false, description: 'Auto-parse JSON files', default: true }
+            { name: 'message', type: 'string', required: true, description: 'Your message to Vegapunk' },
+            { name: 'context', type: 'string', required: false, description: 'Optional context for the conversation' }
           ],
           usage: {
-            totalExecutions: 2847,
-            successRate: 0.98,
-            avgExecutionTime: 145,
-            lastUsed: new Date(Date.now() - 2 * 60 * 1000).toISOString()
+            totalExecutions: 0,
+            successRate: 1.0,
+            avgExecutionTime: 100,
+            lastUsed: new Date().toISOString()
           },
           status: 'active',
-          tags: ['file', 'io', 'parsing', 'popular'],
-          documentation: 'https://docs.vegapunk.ai/tools/file-reader'
+          tags: ['chat', 'ai', 'assistant'],
+          documentation: ''
         },
         {
-          id: 'data-analyzer',
-          name: 'Data Analyzer',
-          description: 'Perform statistical analysis and generate insights from datasets',
+          id: 'analyze_agent_network',
+          name: 'analyze_agent_network',
+          description: 'Analyze the Vegapunk multi-agent network status and capabilities',
           category: 'analysis',
-          version: '1.5.2',
-          author: 'Analytics Team',
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
           isPublic: true,
           parameters: [
-            { name: 'dataset', type: 'array', required: true, description: 'Dataset to analyze' },
-            { name: 'analysisType', type: 'string', required: true, description: 'Type of analysis to perform' },
-            { name: 'includeVisualization', type: 'boolean', required: false, description: 'Generate charts', default: false }
+            { name: 'includeMetrics', type: 'boolean', required: false, description: 'Include performance metrics in the analysis' }
           ],
           usage: {
-            totalExecutions: 1456,
-            successRate: 0.94,
-            avgExecutionTime: 2847,
-            lastUsed: new Date(Date.now() - 15 * 60 * 1000).toISOString()
+            totalExecutions: 0,
+            successRate: 1.0,
+            avgExecutionTime: 200,
+            lastUsed: new Date().toISOString()
           },
           status: 'active',
-          tags: ['analysis', 'statistics', 'insights'],
-          documentation: 'https://docs.vegapunk.ai/tools/data-analyzer'
+          tags: ['network', 'analysis', 'monitoring'],
+          documentation: ''
         },
         {
-          id: 'secure-encryptor',
-          name: 'Secure Encryptor',
-          description: 'Advanced encryption and decryption with multiple cipher support',
-          category: 'security',
-          version: '3.0.1',
-          author: 'Security Division',
-          isPublic: false,
-          parameters: [
-            { name: 'data', type: 'string', required: true, description: 'Data to encrypt/decrypt' },
-            { name: 'operation', type: 'string', required: true, description: 'encrypt or decrypt' },
-            { name: 'algorithm', type: 'string', required: false, description: 'Encryption algorithm', default: 'AES-256-GCM' },
-            { name: 'key', type: 'string', required: true, description: 'Encryption key' }
-          ],
-          usage: {
-            totalExecutions: 892,
-            successRate: 0.99,
-            avgExecutionTime: 78,
-            lastUsed: new Date(Date.now() - 45 * 60 * 1000).toISOString()
-          },
-          status: 'active',
-          tags: ['security', 'encryption', 'privacy'],
-          documentation: 'https://docs.vegapunk.ai/tools/secure-encryptor'
-        },
-        {
-          id: 'network-monitor',
-          name: 'Network Monitor',
-          description: 'Monitor network connectivity and performance metrics',
-          category: 'system',
-          version: '1.2.0',
-          author: 'Infrastructure Team',
+          id: 'execute_workflow',
+          name: 'execute_workflow',
+          description: 'Execute a multi-agent workflow using LangGraph orchestration',
+          category: 'system' as const,
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
           isPublic: true,
           parameters: [
-            { name: 'host', type: 'string', required: true, description: 'Host to monitor' },
-            { name: 'port', type: 'number', required: false, description: 'Port to check', default: 80 },
-            { name: 'timeout', type: 'number', required: false, description: 'Timeout in ms', default: 5000 }
+            { name: 'workflow', type: 'string', required: true, description: 'The workflow to execute (e.g., "ethical-review", "code-analysis")' },
+            { name: 'input', type: 'string', required: true, description: 'Input data for the workflow' }
           ],
           usage: {
-            totalExecutions: 5623,
-            successRate: 0.91,
-            avgExecutionTime: 1245,
-            lastUsed: new Date(Date.now() - 5 * 60 * 1000).toISOString()
+            totalExecutions: 0,
+            successRate: 1.0,
+            avgExecutionTime: 500,
+            lastUsed: new Date().toISOString()
           },
           status: 'active',
-          tags: ['network', 'monitoring', 'connectivity'],
-          documentation: 'https://docs.vegapunk.ai/tools/network-monitor'
-        },
-        {
-          id: 'legacy-converter',
-          name: 'Legacy Converter',
-          description: 'Convert legacy data formats to modern standards',
-          category: 'utility',
-          version: '0.9.1',
-          author: 'Legacy Support',
-          isPublic: true,
-          parameters: [
-            { name: 'inputFormat', type: 'string', required: true, description: 'Input data format' },
-            { name: 'outputFormat', type: 'string', required: true, description: 'Desired output format' },
-            { name: 'data', type: 'string', required: true, description: 'Data to convert' }
-          ],
-          usage: {
-            totalExecutions: 234,
-            successRate: 0.87,
-            avgExecutionTime: 890,
-            lastUsed: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-          },
-          status: 'deprecated',
-          tags: ['legacy', 'conversion', 'compatibility'],
-          documentation: 'https://docs.vegapunk.ai/tools/legacy-converter'
+          tags: ['workflow', 'orchestration', 'langgraph'],
+          documentation: ''
         }
       ];
 

@@ -155,30 +155,41 @@ export function MCPLogsViewer() {
    */
   const fetchLogsData = useCallback(async () => {
     try {
-      // Mock data for development - replace with actual API calls
-      const mockLogs = Array.from({ length: 50 }, () => generateMockLog());
+      // Fetch real logs from API
+      const response = await fetch(`/api/mcp/server/logs?level=all&limit=100`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch logs');
+      }
       
-      const mockStats: LogStats = {
-        total: mockLogs.length,
+      const data = await response.json();
+      const realLogs: LogEntry[] = data.logs.map((log: any) => ({
+        id: log.id,
+        timestamp: log.timestamp,
+        level: log.level.toUpperCase() as LogEntry['level'],
+        component: log.component,
+        message: log.message,
+        metadata: log.metadata
+      }));
+      
+      // Calculate stats from real logs
+      const stats: LogStats = {
+        total: realLogs.length,
         byLevel: {
-          DEBUG: mockLogs.filter(l => l.level === 'DEBUG').length,
-          INFO: mockLogs.filter(l => l.level === 'INFO').length,
-          WARN: mockLogs.filter(l => l.level === 'WARN').length,
-          ERROR: mockLogs.filter(l => l.level === 'ERROR').length
+          DEBUG: realLogs.filter(l => l.level === 'DEBUG').length,
+          INFO: realLogs.filter(l => l.level === 'INFO').length,
+          WARN: realLogs.filter(l => l.level === 'WARN').length,
+          ERROR: realLogs.filter(l => l.level === 'ERROR').length
         },
-        byComponent: {
-          'mcp-server': mockLogs.filter(l => l.component === 'mcp-server').length,
-          'tool-executor': mockLogs.filter(l => l.component === 'tool-executor').length,
-          'connection-pool': mockLogs.filter(l => l.component === 'connection-pool').length,
-          'auth-service': mockLogs.filter(l => l.component === 'auth-service').length,
-          'resource-manager': mockLogs.filter(l => l.component === 'resource-manager').length
-        },
-        recentErrors: mockLogs.filter(l => l.level === 'ERROR').slice(0, 5),
+        byComponent: realLogs.reduce((acc, log) => {
+          acc[log.component] = (acc[log.component] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        recentErrors: realLogs.filter(l => l.level === 'ERROR').slice(0, 5),
         lastUpdate: new Date().toISOString()
       };
 
-      setLogs(mockLogs);
-      setLogStats(mockStats);
+      setLogs(realLogs);
+      setLogStats(stats);
       setError(null);
 
     } catch (err) {
@@ -187,7 +198,7 @@ export function MCPLogsViewer() {
     } finally {
       setIsLoading(false);
     }
-  }, [generateMockLog]);
+  }, []);
 
   /**
    * Auto-scroll to bottom
@@ -216,21 +227,19 @@ export function MCPLogsViewer() {
   }, [logs, filters]);
 
   /**
-   * Streaming simulation
+   * Real-time log streaming via WebSocket
    */
   useEffect(() => {
     if (isStreaming) {
+      // TODO: Connect to WebSocket for real-time logs
+      // For now, we'll poll the API
       const interval = setInterval(() => {
-        const newLog = generateMockLog();
-        setLogs(prevLogs => {
-          const updatedLogs = [newLog, ...prevLogs.slice(0, maxLogEntries - 1)];
-          return updatedLogs;
-        });
-      }, 2000 + Math.random() * 3000); // Random interval between 2-5 seconds
+        fetchLogsData();
+      }, 5000); // Poll every 5 seconds
 
       return () => clearInterval(interval);
     }
-  }, [isStreaming, maxLogEntries, generateMockLog]);
+  }, [isStreaming, fetchLogsData]);
 
   /**
    * Initial data fetch

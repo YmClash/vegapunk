@@ -102,195 +102,81 @@ export class MCPToolsService extends EventEmitter {
   private initializeDefaultTools(): void {
     const defaultTools: ToolDefinition[] = [
       {
-        name: 'ethical_analysis',
-        description: 'Perform comprehensive ethical analysis using multiple moral frameworks (utilitarian, deontological, virtue ethics, care ethics)',
-        category: 'ethical-analysis',
+        name: 'vegapunk_chat',
+        description: 'Chat with Vegapunk AI assistant for technical and ethical guidance',
+        category: 'communication',
         inputSchema: {
           type: 'object',
           properties: {
-            content: {
+            message: {
               type: 'string',
-              description: 'Content to analyze for ethical implications'
-            },
-            frameworks: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Ethical frameworks to apply',
-              default: ['utilitarian', 'deontological', 'virtue', 'care']
+              description: 'Your message to Vegapunk'
             },
             context: {
               type: 'string',
-              description: 'Additional context for analysis',
+              description: 'Optional context for the conversation',
               required: false
             }
           },
-          required: ['content']
+          required: ['message']
         },
         metadata: {
-          cost: 30,
-          latency: 5000,
-          reliability: 0.95,
-          version: '1.2.0',
-          author: 'Vegapunk Team',
-          tags: ['ethics', 'analysis', 'moral-reasoning']
+          cost: 10,
+          latency: 100,
+          reliability: 0.99,
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
+          tags: ['chat', 'ai', 'assistant']
         }
       },
       {
-        name: 'technical_support',
-        description: 'Provide comprehensive technical support and analysis for software, hardware, and system issues',
-        category: 'technical-support',
+        name: 'analyze_agent_network',
+        description: 'Analyze the Vegapunk multi-agent network status and capabilities',
+        category: 'analysis',
         inputSchema: {
           type: 'object',
           properties: {
-            query: {
-              type: 'string',
-              description: 'Technical question or issue description'
-            },
-            category: {
-              type: 'string',
-              enum: ['general', 'software', 'hardware', 'network', 'database', 'security'],
-              description: 'Category of technical issue'
-            },
-            severity: {
-              type: 'string',
-              enum: ['low', 'medium', 'high', 'critical'],
-              default: 'medium',
-              description: 'Issue severity level'
-            },
-            environment: {
-              type: 'object',
-              properties: {
-                os: { type: 'string' },
-                version: { type: 'string' },
-                browser: { type: 'string' }
-              },
-              required: false
+            includeMetrics: {
+              type: 'boolean',
+              description: 'Include performance metrics in the analysis',
+              default: false
             }
-          },
-          required: ['query', 'category']
+          }
         },
         metadata: {
           cost: 20,
-          latency: 3000,
-          reliability: 0.92,
-          version: '1.1.0',
-          author: 'Vegapunk Team',
-          tags: ['support', 'technical', 'troubleshooting']
+          latency: 200,
+          reliability: 0.95,
+          version: '1.0.0',
+          author: 'Vegapunk MCP',
+          tags: ['network', 'analysis', 'monitoring']
         }
       },
       {
-        name: 'code_analysis',
-        description: 'Analyze code for quality, security vulnerabilities, performance issues, and best practices',
-        category: 'code-analysis',
+        name: 'execute_workflow',
+        description: 'Execute a multi-agent workflow using LangGraph orchestration',
+        category: 'system',
         inputSchema: {
           type: 'object',
           properties: {
-            code: {
+            workflow: {
               type: 'string',
-              description: 'Code to analyze'
+              description: 'The workflow to execute (e.g., "ethical-review", "code-analysis")'
             },
-            language: {
+            input: {
               type: 'string',
-              enum: ['javascript', 'typescript', 'python', 'java', 'go', 'rust', 'c++'],
-              description: 'Programming language'
-            },
-            analysisType: {
-              type: 'array',
-              items: {
-                type: 'string',
-                enum: ['quality', 'security', 'performance', 'best-practices']
-              },
-              default: ['quality', 'security'],
-              description: 'Types of analysis to perform'
+              description: 'Input data for the workflow'
             }
           },
-          required: ['code', 'language']
+          required: ['workflow', 'input']
         },
         metadata: {
-          cost: 25,
-          latency: 4000,
+          cost: 50,
+          latency: 500,
           reliability: 0.90,
           version: '1.0.0',
-          author: 'Vegapunk Team',
-          tags: ['code', 'analysis', 'security', 'quality']
-        }
-      },
-      {
-        name: 'data_processing',
-        description: 'Process, transform, and analyze various data formats with advanced filtering and aggregation',
-        category: 'data-processing',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            data: {
-              type: 'string',
-              description: 'Data to process (JSON, CSV, XML, etc.)'
-            },
-            format: {
-              type: 'string',
-              enum: ['json', 'csv', 'xml', 'yaml'],
-              description: 'Input data format'
-            },
-            operations: {
-              type: 'array',
-              items: {
-                type: 'string',
-                enum: ['filter', 'aggregate', 'transform', 'validate', 'clean']
-              },
-              description: 'Operations to perform on data'
-            },
-            outputFormat: {
-              type: 'string',
-              enum: ['json', 'csv', 'xml', 'yaml'],
-              default: 'json',
-              description: 'Desired output format'
-            }
-          },
-          required: ['data', 'format', 'operations']
-        },
-        metadata: {
-          cost: 15,
-          latency: 2500,
-          reliability: 0.94,
-          version: '1.0.0',
-          author: 'Vegapunk Team',
-          tags: ['data', 'processing', 'transformation']
-        }
-      },
-      {
-        name: 'ai_model_evaluation',
-        description: 'Evaluate AI model performance, bias, fairness, and provide optimization recommendations',
-        category: 'ai-evaluation',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            modelData: {
-              type: 'string',
-              description: 'Model performance data or metrics'
-            },
-            evaluationType: {
-              type: 'array',
-              items: {
-                type: 'string',
-                enum: ['performance', 'bias', 'fairness', 'robustness', 'explainability']
-              },
-              description: 'Types of evaluation to perform'
-            },
-            dataset: {
-              type: 'string',
-              description: 'Test dataset information',
-              required: false
-            }
-          },
-          required: ['modelData', 'evaluationType']
-        },
-        metadata: {
-          cost: 40,
-          latency: 6000,
-          reliability: 0.88,
-          version: '1.0.0',
-          author: 'Vegapunk Team',
-          tags: ['ai', 'evaluation', 'bias', 'fairness']
+          author: 'Vegapunk MCP',
+          tags: ['workflow', 'orchestration', 'langgraph']
         }
       }
     ];
@@ -300,11 +186,11 @@ export class MCPToolsService extends EventEmitter {
       this.availableTools.set(tool.name, tool);
       this.toolUsageStats.set(tool.name, {
         toolName: tool.name,
-        executions: Math.floor(Math.random() * 100) + 10,
-        successCount: Math.floor(Math.random() * 90) + 8,
-        failureCount: Math.floor(Math.random() * 10),
-        avgExecutionTime: Math.floor(Math.random() * 3000) + 1000,
-        lastUsed: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
+        executions: 0,
+        successCount: 0,
+        failureCount: 0,
+        avgExecutionTime: tool.metadata.latency,
+        lastUsed: new Date().toISOString(),
         errors: []
       });
     });

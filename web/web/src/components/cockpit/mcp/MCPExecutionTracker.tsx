@@ -234,57 +234,96 @@ export function MCPExecutionTracker() {
    */
   const fetchExecutionData = useCallback(async () => {
     try {
-      // Mock data for development - replace with actual API calls
-      const mockActiveExecutions = Array.from({ length: 3 }, () => {
-        const exec = generateMockExecution();
-        exec.status = Math.random() > 0.5 ? 'running' : 'pending';
-        return exec;
-      });
+      setIsLoading(true);
+      
+      // Fetch real execution data from API
+      const [activeResponse, historyResponse, analyticsResponse] = await Promise.all([
+        fetch('/api/mcp/executions/active'),
+        fetch('/api/mcp/executions/history?limit=50'),
+        fetch('/api/mcp/executions/analytics')
+      ]);
 
-      const mockExecutionHistory = Array.from({ length: 20 }, () => generateMockExecution());
+      if (!activeResponse.ok || !historyResponse.ok || !analyticsResponse.ok) {
+        throw new Error('Failed to fetch execution data');
+      }
 
-      const mockExecutionMetrics: ExecutionMetrics = {
-        totalExecutions: 2847,
-        activeExecutions: mockActiveExecutions.length,
-        completedExecutions: 2578,
-        failedExecutions: 145,
-        averageExecutionTime: 2847,
-        successRate: 0.95,
-        throughput: 12.5,
+      const activeData = await activeResponse.json();
+      const historyData = await historyResponse.json();
+      const analyticsData = await analyticsResponse.json();
+
+      // Transform API data to component format
+      const realActiveExecutions: Execution[] = activeData.executions || [];
+      const realExecutionHistory: Execution[] = historyData.executions || [];
+
+      // Use real analytics data or default values
+      const realExecutionMetrics: ExecutionMetrics = analyticsData.analytics ? {
+        totalExecutions: analyticsData.analytics.totalExecutions || 0,
+        activeExecutions: realActiveExecutions.length,
+        completedExecutions: analyticsData.analytics.successCount || 0,
+        failedExecutions: analyticsData.analytics.failureCount || 0,
+        averageExecutionTime: analyticsData.analytics.avgExecutionTime || 0,
+        successRate: analyticsData.analytics.successRate || 1.0,
+        throughput: analyticsData.analytics.throughput || 0,
         resourceUsage: {
-          avgCpuUsage: 23.4,
-          avgMemoryUsage: 45.2,
-          peakMemoryUsage: 78.9,
-          totalNetworkIO: 1024 * 1024 * 156 // bytes
+          avgCpuUsage: 0,
+          avgMemoryUsage: 0,
+          peakMemoryUsage: 0,
+          totalNetworkIO: 0
         },
         queueMetrics: {
-          currentQueueSize: 5,
-          averageQueueTime: 1245,
-          maxQueueTime: 8934
+          currentQueueSize: 0,
+          averageQueueTime: 0,
+          maxQueueTime: 0
         },
         errorAnalysis: {
-          topErrors: [
-            { code: 'TIMEOUT_ERROR', count: 45, message: 'Execution timeout' },
-            { code: 'VALIDATION_ERROR', count: 32, message: 'Parameter validation failed' },
-            { code: 'RESOURCE_ERROR', count: 28, message: 'Resource unavailable' }
-          ],
-          errorRate: 0.05,
-          criticalErrors: 12
+          topErrors: analyticsData.analytics?.failureReasons ? 
+            Object.entries(analyticsData.analytics.failureReasons).map(([code, count]) => ({
+              code,
+              count: count as number,
+              message: code.replace(/_/g, ' ')
+            })) : [],
+          errorRate: analyticsData.analytics?.errorRate || 0,
+          criticalErrors: 0
+        }
+      } : {
+        totalExecutions: 0,
+        activeExecutions: 0,
+        completedExecutions: 0,
+        failedExecutions: 0,
+        averageExecutionTime: 0,
+        successRate: 1.0,
+        throughput: 0,
+        resourceUsage: {
+          avgCpuUsage: 0,
+          avgMemoryUsage: 0,
+          peakMemoryUsage: 0,
+          totalNetworkIO: 0
+        },
+        queueMetrics: {
+          currentQueueSize: 0,
+          averageQueueTime: 0,
+          maxQueueTime: 0
+        },
+        errorAnalysis: {
+          topErrors: [],
+          errorRate: 0,
+          criticalErrors: 0
         }
       };
 
-      const mockExecutionTrends: ExecutionTrend[] = Array.from({ length: 24 }, (_, i) => ({
-        timestamp: new Date(Date.now() - (23 - i) * 60 * 60 * 1000).toISOString(),
-        executions: Math.floor(Math.random() * 50) + 10,
-        successRate: 0.9 + Math.random() * 0.1,
-        avgDuration: 2000 + Math.random() * 3000,
-        errors: Math.floor(Math.random() * 5)
-      }));
+      const realExecutionTrends: ExecutionTrend[] = analyticsData.analytics?.performanceTrends ? 
+        analyticsData.analytics.performanceTrends.map((trend: any) => ({
+          timestamp: trend.timestamp,
+          executions: trend.throughput || 0,
+          successRate: 1 - (trend.errorRate || 0),
+          avgDuration: trend.avgResponseTime || 0,
+          errors: Math.round((trend.throughput || 0) * (trend.errorRate || 0))
+        })) : [];
 
-      setActiveExecutions(mockActiveExecutions);
-      setExecutionHistory(mockExecutionHistory);
-      setExecutionMetrics(mockExecutionMetrics);
-      setExecutionTrends(mockExecutionTrends);
+      setActiveExecutions(realActiveExecutions);
+      setExecutionHistory(realExecutionHistory);
+      setExecutionMetrics(realExecutionMetrics);
+      setExecutionTrends(realExecutionTrends);
       setError(null);
 
     } catch (err) {
@@ -296,51 +335,18 @@ export function MCPExecutionTracker() {
   }, [generateMockExecution]);
 
   /**
-   * Real-time execution updates simulation
+   * Real-time execution updates - just refresh data periodically
    */
   useEffect(() => {
+    // Poll for updates every 5 seconds when there are active executions
     const interval = setInterval(() => {
-      // Simulate execution status updates
-      setActiveExecutions(prev => {
-        const updated = prev.map(exec => {
-          if (exec.status === 'running' && Math.random() > 0.7) {
-            const completed = Math.random() > 0.2;
-            return {
-              ...exec,
-              status: completed ? 'completed' : 'failed',
-              endTime: new Date().toISOString(),
-              duration: Date.now() - new Date(exec.startTime).getTime(),
-              result: completed ? { success: true, data: 'Completed successfully' } : undefined,
-              error: !completed ? {
-                code: 'RUNTIME_ERROR',
-                message: 'Execution failed during processing'
-              } : undefined
-            };
-          }
-          return exec;
-        });
-
-        // Move completed/failed executions to history
-        const stillActive = updated.filter(exec => exec.status === 'running' || exec.status === 'pending');
-        const completed = updated.filter(exec => exec.status === 'completed' || exec.status === 'failed');
-        
-        if (completed.length > 0) {
-          setExecutionHistory(prevHistory => [...completed, ...prevHistory.slice(0, 49)]);
-        }
-
-        // Add new executions occasionally
-        if (stillActive.length < 5 && Math.random() > 0.8) {
-          const newExec = generateMockExecution();
-          newExec.status = 'pending';
-          return [...stillActive, newExec];
-        }
-
-        return stillActive;
-      });
-    }, 3000);
+      if (activeExecutions.length > 0) {
+        fetchExecutionData();
+      }
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [generateMockExecution]);
+  }, [activeExecutions.length, fetchExecutionData]);
 
   /**
    * Auto-refresh effect
