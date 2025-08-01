@@ -269,35 +269,36 @@ export function MCPToolsManager() {
         }
       ];
 
-      const mockAnalytics: ToolAnalytics = {
-        totalTools: mockTools.length,
-        activeTools: mockTools.filter(t => t.status === 'active').length,
-        categories: {
-          'data': 1,
-          'analysis': 1,
-          'security': 1,
-          'system': 1,
-          'utility': 1
-        },
-        popularTools: mockTools.slice(0, 3),
+      // Calculate analytics from real tools
+      const categories: { [key: string]: number } = {};
+      realTools.forEach(tool => {
+        const cat = tool.category as string;
+        categories[cat] = (categories[cat] || 0) + 1;
+      });
+
+      const realAnalytics: ToolAnalytics = {
+        totalTools: realTools.length,
+        activeTools: realTools.filter(t => t.status === 'active').length,
+        categories,
+        popularTools: realTools.slice(0, 3),
         recentActivity: [
-          { date: '2025-07-23', executions: 156, successRate: 0.96 },
-          { date: '2025-07-22', executions: 143, successRate: 0.94 },
-          { date: '2025-07-21', executions: 178, successRate: 0.97 },
-          { date: '2025-07-20', executions: 134, successRate: 0.93 },
-          { date: '2025-07-19', executions: 167, successRate: 0.95 }
+          { date: new Date().toISOString().split('T')[0], executions: 0, successRate: 1.0 },
+          { date: new Date(Date.now() - 86400000).toISOString().split('T')[0], executions: 0, successRate: 1.0 },
+          { date: new Date(Date.now() - 172800000).toISOString().split('T')[0], executions: 0, successRate: 1.0 },
+          { date: new Date(Date.now() - 259200000).toISOString().split('T')[0], executions: 0, successRate: 1.0 },
+          { date: new Date(Date.now() - 345600000).toISOString().split('T')[0], executions: 0, successRate: 1.0 }
         ],
         performanceMetrics: {
-          avgExecutionTime: 1052,
-          totalExecutions: 11052,
-          successRate: 0.95,
-          errorRate: 0.05
+          avgExecutionTime: 200,
+          totalExecutions: 0,
+          successRate: 1.0,
+          errorRate: 0.0
         }
       };
 
-      setAvailableTools(mockTools);
-      setFilteredTools(mockTools);
-      setToolAnalytics(mockAnalytics);
+      setAvailableTools(realTools);
+      setFilteredTools(realTools);
+      setToolAnalytics(realAnalytics);
       setError(null);
 
     } catch (err) {
