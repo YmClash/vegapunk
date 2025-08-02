@@ -7,6 +7,9 @@ import { OllamaProvider } from './llm/OllamaProvider';
 import { HuggingFaceProvider } from './llm/HuggingFaceProvider';
 import { ChatHandler } from './chat/ChatHandler';
 import { ShakaController } from './api/controllers/ShakaController';
+import { AtlasController } from './agents/atlas/AtlasController';
+import { EdisonController } from './agents/edison/EdisonController';
+import { EdisonAgent } from './agents/edison/EdisonAgent';
 import { VegapunkAgentGraph } from './graph/VegapunkAgentGraph';
 import langGraphRoutes, { initializeLangGraphRoutes } from './api/routes/langgraph';
 import { LangGraphWebSocketHandler } from './websocket/langgraph-handlers';
@@ -170,6 +173,25 @@ export async function startDashboardOnly(): Promise<void> {
         'agents/shaka/alerts': '/api/agents/shaka/alerts',
         'agents/shaka/conflicts': '/api/agents/shaka/conflicts',
         'agents/shaka/detect-ethics': '/api/agents/shaka/detect-ethics (POST)',
+        
+        // AtlasAgent APIs
+        'agents/atlas/status': '/api/agents/atlas/status',
+        'agents/atlas/threats': '/api/agents/atlas/threats',
+        'agents/atlas/scan': '/api/agents/atlas/scan (POST)',
+        'agents/atlas/respond': '/api/agents/atlas/respond (POST)',
+        'agents/atlas/incidents': '/api/agents/atlas/incidents',
+        'agents/atlas/compliance': '/api/agents/atlas/compliance',
+        'agents/atlas/automate': '/api/agents/atlas/automate (POST)',
+        
+        // EdisonAgent APIs
+        'agents/edison/status': '/api/agents/edison/status',
+        'agents/edison/analyze': '/api/agents/edison/analyze (POST)',
+        'agents/edison/innovate': '/api/agents/edison/innovate (POST)',
+        'agents/edison/reason': '/api/agents/edison/reason (POST)',
+        'agents/edison/research': '/api/agents/edison/research (POST & GET)',
+        'agents/edison/solutions': '/api/agents/edison/solutions',
+        'agents/edison/metrics': '/api/agents/edison/metrics',
+        'agents/edison/collaborate': '/api/agents/edison/collaborate (POST)',
         
         // A2A Protocol APIs
         'a2a/network/topology': '/api/a2a/network/topology',
@@ -369,7 +391,31 @@ export async function startDashboardOnly(): Promise<void> {
       logger.warn('⚠️ ShakaAgent Controller not available - ShakaAgent not initialized');
     }
 
-    // 14. API Routes
+    // 14. Initialize AtlasAgent Controller
+    const atlasController = AtlasController.getInstance();
+    await atlasController.start();
+    logger.info('🛡️ AtlasAgent Controller initialized and started');
+
+    // 15. Initialize EdisonAgent
+    const edisonConfig = {
+      id: 'edison-001',
+      name: 'Edison Innovation Agent',
+      innovationFocus: 'breakthrough' as const,
+      logicalStrictness: 'practical' as const,
+      problemComplexity: 'complex' as const,
+      researchDepth: 'moderate' as const,
+      creativityLevel: 0.8,
+      riskTolerance: 0.7,
+      collaborationMode: 'collaborative' as const,
+      enableQuantumThinking: true,
+      enableAbstractReasoning: true
+    };
+    
+    const edisonAgent = new EdisonAgent(edisonConfig);
+    // EdisonAgent is initialized via constructor
+    logger.info('💡 EdisonAgent initialized successfully');
+
+    // 16. API Routes
     app.get('/api/health', async (req, res) => {
       const health = await ollama.getHealthStatus();
       const models = await ollama.listModels();
@@ -709,6 +755,21 @@ export async function startDashboardOnly(): Promise<void> {
       logger.info('🧠 ShakaAgent API routes registered');
     }
 
+    // AtlasAgent API Routes
+    app.get('/api/agents/atlas/status', (req, res) => atlasController.getStatus(req, res));
+    app.get('/api/agents/atlas/threats', (req, res) => atlasController.getThreats(req, res));
+    app.post('/api/agents/atlas/scan', (req, res) => atlasController.inititateScan(req, res));
+    app.post('/api/agents/atlas/respond', (req, res) => atlasController.respondToIncident(req, res));
+    app.get('/api/agents/atlas/incidents', (req, res) => atlasController.getIncidents(req, res));
+    app.get('/api/agents/atlas/compliance', (req, res) => atlasController.getCompliance(req, res));
+    app.post('/api/agents/atlas/automate', (req, res) => atlasController.createAutomation(req, res));
+    app.get('/api/agents/atlas/security-status', (req, res) => atlasController.getStatus(req, res));
+    logger.info('🛡️ AtlasAgent API routes registered');
+
+    // EdisonAgent API Routes
+    EdisonController.registerRoutes(app, edisonAgent);
+    logger.info('💡 EdisonAgent API routes registered');
+
     // A2A API Routes
     app.use('/api/a2a', a2aRoutes);
     logger.info('🔄 A2A API routes registered');
@@ -810,9 +871,25 @@ export async function startDashboardOnly(): Promise<void> {
               ],
               metadata: { version: '1.0.0', location: 'graph://shaka-001', load: 22, uptime: 3500000 },
               lastSeen: new Date().toISOString()
+            },
+            {
+              agentId: 'atlas-001',
+              agentType: 'SecurityAutomation',
+              status: 'online',
+              capabilities: [
+                { id: 'threat-detection', name: 'Threat Detection', category: 'security', reliability: 0.94, cost: 25 },
+                { id: 'incident-response', name: 'Incident Response', category: 'security', reliability: 0.92, cost: 40 },
+                { id: 'security-automation', name: 'Security Automation', category: 'automation', reliability: 0.95, cost: 20 }
+              ],
+              metadata: { version: '2.0.0', location: 'graph://atlas-001', load: 45, uptime: 3600000 },
+              lastSeen: new Date().toISOString()
             }
           ],
-          connections: { 'vegapunk-001': ['shaka-001'], 'shaka-001': ['vegapunk-001'] },
+          connections: { 
+            'vegapunk-001': ['shaka-001', 'atlas-001'], 
+            'shaka-001': ['vegapunk-001', 'atlas-001'], 
+            'atlas-001': ['vegapunk-001', 'shaka-001'] 
+          },
           lastUpdated: new Date().toISOString()
         };
         res.json(topology);
