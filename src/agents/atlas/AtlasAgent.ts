@@ -100,7 +100,7 @@ export class AtlasAgent extends AgenticSatellite {
       memory: {
         shortTermCapacity: 100,
         longTermCapacity: 2000, // Needs extensive threat history
-        canForget: false, // Security incidents must be remembered
+        canForget: true, // Allow forgetting old incidents to prevent memory overflow
         supportedMemoryTypes: ['episodic', 'semantic', 'procedural'],
         retrievalMethods: ['exact', 'semantic', 'temporal'],
       },
@@ -227,8 +227,11 @@ export class AtlasAgent extends AgenticSatellite {
     // Start automation engine
     await this.automationEngine.scheduleAutomatedTasks();
     
-    // Start base agent cycle
-    await super.start();
+    // Do NOT start the base agent cycle automatically
+    // Atlas should respond to external requests, not run autonomously
+    // await super.start();
+    
+    this.atlasLogger.info('AtlasAgent started - ready to handle security requests');
   }
 
   /**

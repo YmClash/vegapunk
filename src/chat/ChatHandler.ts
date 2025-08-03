@@ -1,6 +1,7 @@
 import { OllamaProvider } from '@/llm/OllamaProvider';
 import { HuggingFaceProvider } from '@/llm/HuggingFaceProvider';
-import { logger } from '../utils/logger';
+import { ShakaAgent } from '@agents/shaka/ShakaAgent';
+import { logger } from '@utils/logger';
 import { EventEmitter } from 'events';
 
 interface ChatMessage {
@@ -26,6 +27,7 @@ export class ChatHandler extends EventEmitter {
   private messageIdCounter: number = 0;
   private providers: Map<ProviderType, LLMProvider>;
   private currentProvider: ProviderType;
+  private shakaAgent?: ShakaAgent;
 
   constructor(private ollama: OllamaProvider, private huggingface?: HuggingFaceProvider) {
     super();
@@ -48,26 +50,30 @@ export class ChatHandler extends EventEmitter {
 
     // Add initial system message
     this.addMessage(this.context.systemPrompt, 'system');
+
+    // Initialize ShakaAgent if we have a provider
+    this.initializeShakaAgent();
   }
 
   private getSystemPrompt(): string {
-    return `Tu es Vegapunk, un assistant IA avancé qui fait partie d'un système multi-agents inspiré du Dr Vegapunk de One Piece..
+    return `Tu es Vegapunk, un assistant IA avancé inspiré du Dr Vegapunk de One Piece.
 
-Vous travaillez actuellement en mode tableau de bord, aidant les utilisateurs à interagir avec le système agentique Vegapunk et à le comprendre.
+🧠 SYSTÈME VEGAPUNK:
+Vous êtes l'intelligence principale du système Vegapunk Dashboard, conçu pour aider les utilisateurs avec des tâches techniques et scientifiques.
 
 Principales caractéristiques:
-- Vous êtes serviable, intelligent et curieux des découvertes scientifiques.
-- Vous pouvez expliquer clairement des concepts complexes d'IA et de multi-agents.
-- Vous représentez l'intelligence collective du système Vegapunk.
-- Vous êtes actuellement en phase de test/développement.
+- Serviable, intelligent et curieux des découvertes scientifiques
+- Expert en concepts d'IA et de développement
+- Assistant technique pour le système Vegapunk
+- Compétent en programmation, architecture système et technologies
 
-Compétences actuelles:
-- Conversation et assistance naturelles
-- Explication de l'architecture multi-agents Vegapunk
-- Aide à la configuration et à l'installation du système
-- Informations sur l'IA et les agents autonomes
+Capacités actuelles:
+- Conversation naturelle et assistance technique
+- Explication de concepts complexes d'IA
+- Aide avec la configuration et l'utilisation du système
+- Support pour le développement et l'architecture
 
-Soyez concis mais complet dans vos réponses. Utilisez les émojis avec parcimonie pour plus de clarté lorsque cela est utile.`;
+Soyez concis mais complet dans vos réponses.`;
   }
 
   private generateMessageId(): string {
@@ -119,31 +125,13 @@ Human: ${userMessage}
 Assistant:`;
   }
 
-  async processMessage(userMessage: string): Promise<string> {
+  async processMessage(userMessage: string): Promise<{ response: string; agent: string; ethicalAnalysis?: any; isCollaborative?: boolean }> {
     try {
       // Add user message to context
       this.addMessage(userMessage, 'user');
       
-      // Build prompt with context
-      const prompt = this.buildPrompt(userMessage);
-      
-      logger.debug('Processing chat message', { 
-        userMessage: userMessage.substring(0, 100),
-        provider: this.currentProvider 
-      });
-      
-      // Get response from current provider
-      const provider = this.providers.get(this.currentProvider);
-      if (!provider) {
-        throw new Error(`Provider ${this.currentProvider} not available`);
-      }
-      
-      const response = await provider.generateResponse(prompt);
-      
-      // Add assistant response to context
-      this.addMessage(response, 'assistant');
-      
-      return response;
+      // Chat principal = Vegapunk uniquement (simple et rapide)
+      return await this.processVegapunkQuery(userMessage);
     } catch (error: any) {
       logger.error('Chat processing error:', error);
       const providerName = this.currentProvider === 'ollama' ? 'Ollama' : 'Hugging Face';
@@ -264,6 +252,222 @@ Assistant:`;
     this.providers.delete(providerType);
     logger.info(`➖ Removed LLM provider: ${providerType}`);
     this.emit('provider-removed', providerType);
+  }
+
+  // ShakaAgent integration methods
+
+  private initializeShakaAgent(): void {
+    try {
+      // Use current provider for ShakaAgent
+      const provider = this.providers.get(this.currentProvider);
+      if (provider) {
+        this.shakaAgent = new ShakaAgent(provider);
+        this.setupShakaEventHandlers();
+        logger.info('🧠 ShakaAgent initialized and integrated with ChatHandler');
+      }
+    } catch (error) {
+      logger.warn('Failed to initialize ShakaAgent', error);
+    }
+  }
+
+  private setupShakaEventHandlers(): void {
+    if (!this.shakaAgent) return;
+
+    this.shakaAgent.on('shaka:analysis-complete', (result) => {
+      this.emit('shaka:analysis-complete', result);
+    });
+
+    this.shakaAgent.on('shaka:ethical-concern', (concern) => {
+      this.emit('shaka:ethical-concern', concern);
+    });
+
+    this.shakaAgent.on('shaka:alert', (alert) => {
+      this.emit('shaka:alert', alert);
+    });
+  }
+
+  private isCollaborationRequest(userMessage: string): boolean {
+    const collaborationKeywords = [
+      'shaka', 'éthique', 'moral', 'opinion', 'analyse', 'conseil',
+      'dilemme', 'décision', 'responsabilité', 'conséquences',
+      'politique', 'guide', 'principes', 'valeurs', 'impact'
+    ];
+    
+    const message = userMessage.toLowerCase();
+    return collaborationKeywords.some(keyword => message.includes(keyword)) && 
+           !message.includes('technique') && !message.includes('comment');
+  }
+
+  private async processVegapunkQuery(userMessage: string): Promise<{ response: string; agent: string }> {
+    const prompt = this.buildPrompt(userMessage);
+    
+    logger.debug('Processing Vegapunk query', { 
+      userMessage: userMessage.substring(0, 100),
+      provider: this.currentProvider 
+    });
+    
+    const provider = this.providers.get(this.currentProvider);
+    if (!provider) {
+      throw new Error(`Provider ${this.currentProvider} not available`);
+    }
+    
+    const response = await provider.generateResponse(prompt);
+    this.addMessage(response, 'assistant');
+    
+    return { response, agent: 'vegapunk' };
+  }
+
+  private async processShakaQuery(userMessage: string): Promise<{ response: string; agent: string; ethicalAnalysis: any }> {
+    if (!this.shakaAgent) {
+      throw new Error('ShakaAgent not initialized');
+    }
+
+    try {
+      logger.info('🧠 Processing ethical query with ShakaAgent', {
+        query: userMessage.substring(0, 100)
+      });
+
+      const result = await this.shakaAgent.processEthicalQuery({
+        query: userMessage,
+        context: {
+          action: userMessage,
+          intent: 'User ethical inquiry',
+          stakeholders: ['user', 'system'],
+        },
+        framework: 'all'
+      });
+
+      const chatResponse = this.formatShakaResponse(result);
+      this.addMessage(chatResponse, 'assistant', { 
+        isEthical: true, 
+        analysis: result.analysis 
+      });
+
+      return { 
+        response: chatResponse, 
+        agent: 'shaka',
+        ethicalAnalysis: {
+          compliance: result.confidence,
+          concerns: result.analysis?.concerns?.length || 0,
+          recommendations: result.recommendations?.length || 0,
+          processingTime: result.processingTime || 0
+        }
+      };
+    } catch (error: any) {
+      logger.error('ShakaAgent processing error:', error);
+      throw error;
+    }
+  }
+
+  private async processCollaborativeQuery(userMessage: string): Promise<{ response: string; agent: string; isCollaborative: boolean }> {
+    try {
+      logger.info('🤝 Processing collaborative query with both agents', {
+        query: userMessage.substring(0, 100)
+      });
+
+      // Get Vegapunk's technical perspective first
+      const vegapunkPrompt = this.buildPrompt(userMessage + "\n\nNote: ShakaAgent will provide complementary ethical analysis.");
+      const provider = this.providers.get(this.currentProvider);
+      if (!provider) {
+        throw new Error(`Provider ${this.currentProvider} not available`);
+      }
+      
+      const vegapunkResponse = await provider.generateResponse(vegapunkPrompt);
+      
+      // Get ShakaAgent's ethical perspective if available
+      let shakaResponse = "";
+      if (this.shakaAgent) {
+        const result = await this.shakaAgent.processEthicalQuery({
+          query: userMessage,
+          context: {
+            action: userMessage,
+            intent: 'Collaborative analysis',
+            stakeholders: ['user', 'system'],
+          },
+          framework: 'all'
+        });
+        shakaResponse = this.formatShakaResponse(result);
+      }
+
+      // Combine both perspectives
+      const collaborativeResponse = `🧠 **Vegapunk - Perspective Technique:**\n${vegapunkResponse}\n\n${shakaResponse}`;
+      
+      this.addMessage(collaborativeResponse, 'assistant', {
+        isCollaborative: true,
+        vegapunkResponse,
+        shakaResponse
+      });
+
+      return { 
+        response: collaborativeResponse, 
+        agent: 'vegapunk', 
+        isCollaborative: true 
+      };
+
+    } catch (error: any) {
+      logger.error('Collaborative query processing error:', error);
+      throw error;
+    }
+  }
+
+  private formatShakaResponse(result: any): string {
+    const { analysis, response, confidence, recommendations } = result;
+    
+    const complianceEmoji = confidence >= 0.8 ? '✅' : confidence >= 0.6 ? '⚠️' : '❌';
+    const complianceText = confidence >= 0.8 ? 'Excellente' : confidence >= 0.6 ? 'Acceptable' : 'Préoccupante';
+
+    let formattedResponse = `🧠 **Analyse Éthique Shaka**\n\n`;
+    formattedResponse += `${response}\n\n`;
+    
+    formattedResponse += `📊 **Évaluation Éthique:**\n`;
+    formattedResponse += `${complianceEmoji} Conformité: ${Math.round(confidence * 100)}% (${complianceText})\n`;
+    
+    if (analysis.concerns && analysis.concerns.length > 0) {
+      formattedResponse += `⚠️ Préoccupations: ${analysis.concerns.length} identifiées\n`;
+    }
+
+    if (recommendations && recommendations.length > 0) {
+      formattedResponse += `\n💡 **Recommandations:**\n`;
+      recommendations.slice(0, 3).forEach((rec: string, index: number) => {
+        formattedResponse += `${index + 1}. ${rec}\n`;
+      });
+    }
+
+    return formattedResponse;
+  }
+
+  // ShakaAgent management methods
+
+  public getShakaAgent(): ShakaAgent | undefined {
+    return this.shakaAgent;
+  }
+
+  public activateShakaAgent(): boolean {
+    if (!this.shakaAgent) {
+      this.initializeShakaAgent();
+    }
+    
+    if (this.shakaAgent) {
+      this.shakaAgent.activate();
+      logger.info('🧠 ShakaAgent activated via ChatHandler');
+      return true;
+    }
+    
+    return false;
+  }
+
+  public deactivateShakaAgent(): boolean {
+    if (this.shakaAgent) {
+      this.shakaAgent.deactivate();
+      logger.info('ShakaAgent deactivated via ChatHandler');
+      return true;
+    }
+    
+    return false;
+  }
+
+  public getShakaStatus() {
+    return this.shakaAgent ? this.shakaAgent.getStatus() : null;
   }
 }
 

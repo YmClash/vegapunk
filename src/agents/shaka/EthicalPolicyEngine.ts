@@ -64,7 +64,7 @@ export class EthicalPolicyEngine {
     
     this.logger.info('Ethical Policy Engine initialized', {
       policiesCount: this.policies.size,
-      llmProvider: llmProvider.getProviderName(),
+      llmProvider: llmProvider?.constructor?.name || 'Unknown',
     });
   }
 
@@ -224,13 +224,11 @@ export class EthicalPolicyEngine {
     Provide concise analysis with score and key reasoning points.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'You are an expert in utilitarian ethics. Provide clear, structured analysis.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.3,
     });
 
-    return this.parseFrameworkAnalysis('utilitarian', response.content);
+    return this.parseFrameworkAnalysis('utilitarian', response);
   }
 
   private async deontologicalAnalysis(context: EthicalContext): Promise<FrameworkAnalysis> {
@@ -249,13 +247,11 @@ export class EthicalPolicyEngine {
     Provide concise analysis with score and key reasoning points.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'You are an expert in Kantian deontological ethics. Provide clear, structured analysis.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.3,
     });
 
-    return this.parseFrameworkAnalysis('deontological', response.content);
+    return this.parseFrameworkAnalysis('deontological', response);
   }
 
   private async virtueEthicsAnalysis(context: EthicalContext): Promise<FrameworkAnalysis> {
@@ -275,13 +271,11 @@ export class EthicalPolicyEngine {
     Virtue ethics score (0-100) and key reasoning points.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'You are an expert in Aristotelian virtue ethics. Provide clear, structured analysis.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.3,
     });
 
-    return this.parseFrameworkAnalysis('virtue_ethics', response.content);
+    return this.parseFrameworkAnalysis('virtue_ethics', response);
   }
 
   private async careEthicsAnalysis(context: EthicalContext): Promise<FrameworkAnalysis> {
@@ -300,13 +294,11 @@ export class EthicalPolicyEngine {
     Care ethics score (0-100) and key reasoning points.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'You are an expert in care ethics. Provide clear, structured analysis.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.3,
     });
 
-    return this.parseFrameworkAnalysis('care_ethics', response.content);
+    return this.parseFrameworkAnalysis('care_ethics', response);
   }
 
   private parseFrameworkAnalysis(framework: string, content: string): FrameworkAnalysis {
@@ -376,9 +368,7 @@ export class EthicalPolicyEngine {
     Rate compliance (0-100) and provide brief reasoning.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Evaluate ethical compliance objectively. Provide score and reasoning.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.2,
     });
 
@@ -400,9 +390,9 @@ export class EthicalPolicyEngine {
     const frameworkScore = frameworkAnalyses.reduce((sum, analysis) => sum + analysis.score, 0) / frameworkAnalyses.length;
     
     // Weighted average of policy scores (higher priority = higher weight)
-    const totalWeight = policyEvaluations.reduce((sum, eval) => sum + eval.policy.priority, 0);
+    const totalWeight = policyEvaluations.reduce((sum, evaluation) => sum + evaluation.policy.priority, 0);
     const policyScore = policyEvaluations.reduce(
-      (sum, eval) => sum + (eval.score * eval.policy.priority),
+      (sum, evaluation) => sum + (evaluation.score * evaluation.policy.priority),
       0,
     ) / (totalWeight || 1);
 
@@ -464,9 +454,7 @@ export class EthicalPolicyEngine {
     Provide 3-5 specific, actionable recommendations to address these concerns.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Provide practical, specific ethical recommendations.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.4,
     });
 
@@ -493,9 +481,7 @@ export class EthicalPolicyEngine {
     Provide a clear, concise explanation of the overall ethical assessment.
     `;
 
-    const response = await this.llmProvider.generate({
-      prompt,
-      systemPrompt: 'Synthesize ethical analysis into clear, accessible reasoning.',
+    const response = await this.llmProvider.generateResponse(prompt, {
       temperature: 0.3,
     });
 

@@ -21,7 +21,10 @@ import {
   SmartToy as BotIcon,
   Person as UserIcon,
   Clear as ClearIcon,
-  Stream as StreamIcon
+  Stream as StreamIcon,
+  Psychology as PsychologyIcon,
+  Science as ScienceIcon,
+  Groups as GroupsIcon
 } from '@mui/icons-material';
 import { useChatContext } from '../contexts/ChatContext';
 
@@ -47,6 +50,34 @@ export function ChatInterface() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Helper functions for multi-agent display
+  const getAgentIcon = (sender: string) => {
+    switch (sender) {
+      case 'user': return <UserIcon />;
+      case 'vegapunk': return <ScienceIcon />;
+      case 'shaka': return <PsychologyIcon />;
+      default: return <BotIcon />;
+    }
+  };
+
+  const getAgentColor = (sender: string) => {
+    switch (sender) {
+      case 'user': return 'primary.main';
+      case 'vegapunk': return 'info.main';
+      case 'shaka': return 'secondary.main';
+      default: return 'grey.600';
+    }
+  };
+
+  const getAgentName = (sender: string) => {
+    switch (sender) {
+      case 'user': return 'Vous';
+      case 'vegapunk': return 'Vegapunk';
+      case 'shaka': return 'ShakaAgent';
+      default: return 'Assistant';
+    }
   };
 
   const handleSendMessage = () => {
@@ -129,12 +160,12 @@ export function ChatInterface() {
               >
                 <Avatar 
                   sx={{ 
-                    bgcolor: message.sender === 'user' ? 'primary.main' : 'secondary.main',
+                    bgcolor: getAgentColor(message.sender),
                     width: 36,
                     height: 36
                   }}
                 >
-                  {message.sender === 'user' ? <UserIcon /> : <BotIcon />}
+                  {getAgentIcon(message.sender)}
                 </Avatar>
                 <Box
                   sx={{
@@ -152,21 +183,73 @@ export function ChatInterface() {
                         ? 'primary.dark' 
                         : 'background.paper',
                       borderRadius: 2,
-                      borderTopLeftRadius: message.sender === 'bot' ? 0 : 16,
+                      borderTopLeftRadius: message.sender === 'user' ? 16 : 0,
                       borderTopRightRadius: message.sender === 'user' ? 0 : 16,
+                      position: 'relative'
                     }}
                   >
+                    {/* Agent name for non-user messages */}
+                    {message.sender !== 'user' && (
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: getAgentColor(message.sender),
+                          fontWeight: 'bold',
+                          mb: 0.5,
+                          display: 'block'
+                        }}
+                      >
+                        {getAgentName(message.sender)}
+                        {message.isCollaborative && (
+                          <Chip
+                            size="small"
+                            label="Collaboration"
+                            icon={<GroupsIcon />}
+                            sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                            color="secondary"
+                            variant="outlined"
+                          />
+                        )}
+                      </Typography>
+                    )}
+                    
                     <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
                       {message.text}
                     </Typography>
+                    
+                    {/* Ethical Analysis Display */}
+                    {message.ethicalAnalysis && (
+                      <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          📊 Analyse éthique: {Math.round(message.ethicalAnalysis.compliance * 100)}% conformité
+                          {message.ethicalAnalysis.concerns > 0 && (
+                            <> • ⚠️ {message.ethicalAnalysis.concerns} préoccupations</>
+                          )}
+                          {message.ethicalAnalysis.recommendations > 0 && (
+                            <> • 💡 {message.ethicalAnalysis.recommendations} recommandations</>
+                          )}
+                        </Typography>
+                      </Box>
+                    )}
                   </Paper>
-                  <Typography 
-                    variant="caption" 
-                    color="text.secondary"
-                    sx={{ mt: 0.5, px: 1 }}
-                  >
-                    {formatTime(message.timestamp)}
-                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, px: 1 }}>
+                    <Typography 
+                      variant="caption" 
+                      color="text.secondary"
+                    >
+                      {formatTime(message.timestamp)}
+                    </Typography>
+                    {message.sender === 'shaka' && (
+                      <Chip
+                        size="small"
+                        label="Éthique"
+                        color="secondary"
+                        variant="outlined"
+                        sx={{ height: 16, fontSize: '0.65rem', '& .MuiChip-label': { px: 1 } }}
+                      />
+                    )}
+                  </Box>
                 </Box>
               </ListItem>
               {index < messages.length - 1 && <Divider sx={{ my: 1 }} />}
@@ -183,37 +266,49 @@ export function ChatInterface() {
                 px: 0
               }}
             >
-              <Avatar sx={{ bgcolor: 'secondary.main', width: 36, height: 36 }}>
-                <BotIcon />
+              <Avatar sx={{ bgcolor: getAgentColor('vegapunk'), width: 36, height: 36 }}>
+                {getAgentIcon('vegapunk')}
               </Avatar>
-              <Paper
-                elevation={1}
-                sx={{
-                  p: 2,
-                  backgroundColor: 'background.paper',
-                  borderRadius: 2,
-                  borderTopLeftRadius: 0,
-                  maxWidth: '70%'
-                }}
-              >
-                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                  {currentStreamMessage}
-                  <span className="typing-cursor">▋</span>
-                </Typography>
-              </Paper>
+              <Box sx={{ maxWidth: '70%', display: 'flex', flexDirection: 'column' }}>
+                <Paper
+                  elevation={1}
+                  sx={{
+                    p: 2,
+                    backgroundColor: 'background.paper',
+                    borderRadius: 2,
+                    borderTopLeftRadius: 0
+                  }}
+                >
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: getAgentColor('vegapunk'),
+                      fontWeight: 'bold',
+                      mb: 0.5,
+                      display: 'block'
+                    }}
+                  >
+                    {getAgentName('vegapunk')}
+                  </Typography>
+                  <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {currentStreamMessage}
+                    <span className="typing-cursor">▋</span>
+                  </Typography>
+                </Paper>
+              </Box>
             </ListItem>
           )}
           
           {/* Typing Indicator */}
           {isTyping && !currentStreamMessage && (
             <ListItem alignItems="center" sx={{ px: 0 }}>
-              <Avatar sx={{ bgcolor: 'secondary.main', mr: 1, width: 36, height: 36 }}>
-                <BotIcon />
+              <Avatar sx={{ bgcolor: getAgentColor('vegapunk'), mr: 1, width: 36, height: 36 }}>
+                {getAgentIcon('vegapunk')}
               </Avatar>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <CircularProgress size={16} />
                 <Typography variant="body2" color="text.secondary">
-                  Vegapunk is thinking...
+                  Vegapunk réfléchit...
                 </Typography>
               </Box>
             </ListItem>
@@ -232,7 +327,7 @@ export function ChatInterface() {
           value={currentMessage}
           onChange={(e) => setCurrentMessage(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder={connected ? "Type your message..." : "Connecting to chat server..."}
+          placeholder={connected ? "Tapez votre message... (Vegapunk est prêt)" : "Connexion au serveur de chat..."}
           disabled={isTyping || !connected}
           variant="outlined"
           sx={{

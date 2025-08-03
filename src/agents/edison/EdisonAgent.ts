@@ -142,8 +142,10 @@ export class EdisonAgent extends AgenticSatellite {
         canFormMemories: true,
         canRetrieveMemories: true,
         canUpdateMemories: true,
+        canForget: true,
         maxMemoryHorizon: 365, // Long-term learning
         memoryTypes: ['factual', 'procedural', 'conceptual', 'experiential'],
+        supportedMemoryTypes: ['factual', 'procedural', 'conceptual', 'experiential'],
       },
       communication: {
         canSendMessages: true,
@@ -209,7 +211,7 @@ export class EdisonAgent extends AgenticSatellite {
     super(config, capabilities, guardrails);
 
     this.config = config;
-    this.llmProvider = llmProvider || LLMProviderFactory.createProvider('ollama');
+    this.llmProvider = llmProvider || LLMProviderFactory.create({ provider: 'ollama' });
     
     // Initialize specialized engines
     const problemSolverConfig: Partial<ProblemSolverConfig> = {
@@ -335,7 +337,7 @@ export class EdisonAgent extends AgenticSatellite {
     
     try {
       // Apply multi-criteria decision analysis
-      const scoredOptions = await this.scoreDe[cisionsMultiCriteria(options, context);
+      const scoredOptions = await this.scoreDecisionsMultiCriteria(options, context);
       
       // Use logical reasoning to validate decision
       const logicalValidation = await this.validateDecisionLogically(scoredOptions[0], context);
@@ -860,7 +862,7 @@ export class EdisonAgent extends AgenticSatellite {
     ];
   }
 
-  private async scoreDe[cisionsMultiCriteria(
+  private async scoreDecisionsMultiCriteria(
     options: DecisionOption[], 
     context: AgentContext
   ): Promise<Array<DecisionOption & { confidence: number }>> {

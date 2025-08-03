@@ -338,14 +338,12 @@ export class ProactiveMonitor extends EventEmitter {
       If no concerns, respond with "NO_CONCERNS".
       `;
 
-      const response = await this.llmProvider.generate({
-        prompt,
-        systemPrompt: 'You are a system monitoring expert. Identify potential issues objectively.',
+      const response = await this.llmProvider.generateResponse(prompt, {
         temperature: 0.2,
       });
 
-      if (!response.content.includes('NO_CONCERNS')) {
-        await this.processIntelligentAlerts(response.content);
+      if (!response.includes('NO_CONCERNS')) {
+        await this.processIntelligentAlerts(response);
       }
 
     } catch (error) {
