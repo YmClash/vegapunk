@@ -60,10 +60,9 @@
     "typescript": "^5.4.3"
   },
   "dependencies": {
+    "@a2a-js/sdk": "^0.2.5",
+    "@genkit-ai/googleai": "^1.8.0",
     "@huggingface/inference": "^2.8.1",
-    "@langchain/community": "^0.3.49",
-    "@langchain/core": "^0.3.66",
-    "@langchain/langgraph": "^0.3.10",
     "@mistralai/mistralai": "^0.4.0",
     "@modelcontextprotocol/sdk": "^1.16.0",
     "@prisma/client": "^5.11.0",
