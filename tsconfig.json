@@ -47,7 +47,8 @@
     "strictFunctionTypes": true,
     "strictBindCallApply": true,
     "strictPropertyInitialization": true,
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+    "downlevelIteration": true
   },
   "include": [
     "src/**/*"

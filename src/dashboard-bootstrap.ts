@@ -7,9 +7,14 @@ import { OllamaProvider } from './llm/OllamaProvider';
 import { HuggingFaceProvider } from './llm/HuggingFaceProvider';
 import { ChatHandler } from './chat/ChatHandler';
 import { ShakaController } from './api/controllers/ShakaController';
+import { ShakaAgentExecutor } from './agents/shaka/ShakaAgentExecutor';
+import { createShakaA2AServer } from './agents/shaka/ShakaA2AServer';
 import { AtlasController } from './agents/atlas/AtlasController';
+import { AtlasAgentExecutor } from './agents/atlas/AtlasAgentExecutor';
+import { AtlasA2AServer } from './agents/atlas/AtlasA2AServer';
 import { EdisonController } from './agents/edison/EdisonController';
 import { EdisonAgent } from './agents/edison/EdisonAgent';
+import { EdisonA2AServer } from './agents/edison/EdisonA2AServer';
 import { VegapunkAgentGraph } from './graph/VegapunkAgentGraph';
 import langGraphRoutes, { initializeLangGraphRoutes } from './api/routes/langgraph';
 import { LangGraphWebSocketHandler } from './websocket/langgraph-handlers';
@@ -382,19 +387,77 @@ export async function startDashboardOnly(): Promise<void> {
     mcpWsHandler.initialize(mcpServerManager, mcpToolsService);
     logger.info('✅ MCP WebSocket handler initialized');
 
-    // 13. Initialize ShakaAgent Controller
+    // 13. Initialize ShakaAgent with A2A
     const shakaAgent = chatHandler.getShakaAgent();
-    const shakaController = shakaAgent ? new ShakaController(shakaAgent) : null;
+    let shakaExecutor: ShakaAgentExecutor | undefined;
+    let shakaA2AServer: any;
+    
+    // Initialize A2A components for Shaka
+    if (shakaAgent) {
+      // Use the Ollama provider as default for ShakaAgentExecutor
+      const currentProvider = ollama;
+      
+      // Create executor with A2A protocol and LLM provider
+      shakaExecutor = new ShakaAgentExecutor(global.a2aProtocol || {}, currentProvider);
+      
+      // Create A2A server for Shaka
+      shakaA2AServer = createShakaA2AServer(shakaExecutor);
+      
+      // Start A2A server on port 8081
+      const shakaA2APort = 8081;
+      shakaA2AServer.listen(shakaA2APort, () => {
+        logger.info(`✅ Shaka A2A server running on port ${shakaA2APort}`);
+      });
+      
+      // Register Shaka with A2A protocol if available
+      if (global.a2aProtocol && global.a2aProtocol.registerAgent) {
+        await global.a2aProtocol.registerAgent({
+          id: 'shaka-001',
+          name: 'Shaka - Ethics & Analysis Agent',
+          endpoint: `http://localhost:${shakaA2APort}`,
+          capabilities: {
+            streaming: true,
+            pushNotifications: true,
+            tools: ["ethical_analysis", "conflict_resolution", "monitoring", "consultation"]
+          }
+        });
+        logger.info('✅ Shaka registered with A2A protocol');
+      }
+    }
+    
+    // Initialize controller with both legacy and A2A support
+    const shakaController = shakaAgent ? new ShakaController(shakaAgent, shakaExecutor, global.a2aProtocol) : null;
     if (shakaController) {
-      logger.info('🧠 ShakaAgent Controller initialized');
+      logger.info('🧠 ShakaAgent Controller initialized with A2A support');
     } else {
       logger.warn('⚠️ ShakaAgent Controller not available - ShakaAgent not initialized');
     }
 
-    // 14. Initialize AtlasAgent Controller
+    // 14. Initialize AtlasAgent with A2A
     const atlasController = AtlasController.getInstance();
     await atlasController.start();
     logger.info('🛡️ AtlasAgent Controller initialized and started');
+    
+    // Initialize A2A components for Atlas
+    const atlasA2AServer = new AtlasA2AServer();
+    const atlasA2APort = 8082;
+    await atlasA2AServer.start(atlasA2APort);
+    logger.info(`✅ Atlas A2A server running on port ${atlasA2APort}`);
+    
+    // Register Atlas with A2A protocol if available
+    if (global.a2aProtocol && global.a2aProtocol.registerAgent) {
+      await global.a2aProtocol.registerAgent({
+        id: 'atlas-001',
+        name: 'Atlas - Security & Automation Agent',
+        endpoint: `http://localhost:${atlasA2APort}`,
+        capabilities: {
+          streaming: true,
+          pushNotifications: true,
+          tools: ["security_scan", "incident_response", "automation", "compliance"]
+        }
+      });
+      logger.info('✅ Atlas registered with A2A protocol');
+    }
 
     // 15. Initialize EdisonAgent
     const edisonConfig = {
@@ -414,6 +477,27 @@ export async function startDashboardOnly(): Promise<void> {
     const edisonAgent = new EdisonAgent(edisonConfig);
     // EdisonAgent is initialized via constructor
     logger.info('💡 EdisonAgent initialized successfully');
+    
+    // Initialize A2A components for Edison
+    const edisonA2AServer = new EdisonA2AServer(edisonAgent);
+    const edisonA2APort = 8083;
+    await edisonA2AServer.start(edisonA2APort);
+    logger.info(`✅ Edison A2A server running on port ${edisonA2APort}`);
+    
+    // Register Edison with A2A protocol if available
+    if (global.a2aProtocol && global.a2aProtocol.registerAgent) {
+      await global.a2aProtocol.registerAgent({
+        id: 'edison-001',
+        name: 'Edison - Innovation & Logic Agent',
+        endpoint: `http://localhost:${edisonA2APort}`,
+        capabilities: {
+          streaming: true,
+          pushNotifications: true,
+          tools: ["problem_decomposition", "innovative_solutions", "logical_analysis", "research_synthesis"]
+        }
+      });
+      logger.info('✅ Edison registered with A2A protocol');
+    }
 
     // 16. API Routes
     app.get('/api/health', async (req, res) => {
@@ -752,7 +836,14 @@ export async function startDashboardOnly(): Promise<void> {
       app.get('/api/agents/shaka/conflicts', shakaController.getConflicts);
       app.post('/api/agents/shaka/detect-ethics', shakaController.detectEthicalContent);
       
-      logger.info('🧠 ShakaAgent API routes registered');
+      // New A2A-aligned endpoints
+      app.post('/api/agents/shaka/analyze-ethics', shakaController.analyzeEthics);
+      app.post('/api/agents/shaka/resolve-conflict', shakaController.resolveConflict);
+      app.post('/api/agents/shaka/consult-ethics', shakaController.consultEthics);
+      app.post('/api/agents/shaka/assess-risk', shakaController.assessRisk);
+      app.post('/api/agents/shaka/monitor-ethics', shakaController.monitorEthics);
+      
+      logger.info('🧠 ShakaAgent API routes registered with A2A support');
     }
 
     // AtlasAgent API Routes

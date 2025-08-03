@@ -64,7 +64,7 @@ export class EthicalPolicyEngine {
     
     this.logger.info('Ethical Policy Engine initialized', {
       policiesCount: this.policies.size,
-      llmProvider: llmProvider.constructor.name || 'Unknown',
+      llmProvider: llmProvider?.constructor?.name || 'Unknown',
     });
   }
 

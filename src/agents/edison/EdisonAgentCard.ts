@@ -3,7 +3,7 @@
  * Defines Edison's capabilities for innovation and logical reasoning
  */
 
-import type { AgentCard } from '@anthropic/a2a-js-sdk';
+import type { AgentCard } from '@a2a-js/sdk';
 
 export const edisonAgentCard: AgentCard = {
   name: "Edison - Innovation & Logic Agent",
@@ -12,6 +12,7 @@ export const edisonAgentCard: AgentCard = {
   capabilities: {
     streaming: true,
     pushNotifications: true,
+    stateTransitionHistory: true,
     tools: ["problem_analysis", "solution_generation", "logical_reasoning", "research_synthesis"]
   },
   schemes: [

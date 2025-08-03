@@ -1,8 +1,8 @@
-# ShakaAgent - Agent Éthique Multi-Protocole 
+# ShakaAgent - Agent Éthique Multi-Protocole (v2.0 - A2A Refactored)
 
 ## 🎯 Vue d'ensemble
 
-ShakaAgent est l'agent éthique avancé du système Vegapunk, spécialisé dans le raisonnement moral multi-framework, la surveillance proactive et l'intégration tri-protocole. Refactorisé en Phase 9, il incarne les valeurs de **justice (正)** et s'intègre nativement avec l'architecture A2A + LangGraph + MCP.
+ShakaAgent est l'agent éthique avancé du système Vegapunk, spécialisé dans le raisonnement moral multi-framework, la surveillance proactive et l'intégration tri-protocole. Refactorisé en Phase 9, puis aligné avec le standard A2A en v2.0, il incarne les valeurs de **justice (正)** et s'intègre nativement avec l'architecture A2A + LangGraph + MCP.
 
 ## 🧠 Capacités Principales
 
@@ -24,16 +24,19 @@ ShakaAgent est l'agent éthique avancé du système Vegapunk, spécialisé dans 
 - Alertes graduées selon la gravité
 - Analyse prédictive des problèmes potentiels
 
-## 🌐 Intégration Tri-Protocole (Phase 9)
+## 🌐 Intégration Tri-Protocole (v2.0 - A2A Refactored)
 
 ### Architecture Multi-Protocole
-ShakaAgent est maintenant intégré dans l'écosystème tri-protocole révolutionnaire:
+ShakaAgent est maintenant intégré dans l'écosystème tri-protocole révolutionnaire avec une refactorisation complète pour l'alignement A2A:
 
-#### **🔗 A2A Protocol Integration**
+#### **🔗 A2A Protocol Integration (v2.0)**
 - **Agent Discovery**: Enregistré comme agent éthique via AgentRegistry
 - **Capability Matching**: Exposé comme capability `ethical-analysis` et `conflict-resolution`
 - **Message Routing**: Reçoit automatiquement les requêtes éthiques via MessageRouter
 - **Performance Metrics**: Tracking temps de réponse <5s, success rate >95%
+- **NEW - A2A Server**: Port dédié 8085 pour communication A2A autonome
+- **NEW - Task Executor**: ShakaAgentExecutor pour exécution standardisée des tâches
+- **NEW - Inter-Agent Consultation**: Consultation directe avec Atlas/Edison via A2A
 
 #### **📊 LangGraph Integration**
 - **ShakaNode**: Noeud dédié dans VegapunkAgentGraph StateGraph
@@ -421,6 +424,80 @@ GET /api/agents/shaka/policies
 
 ---
 
+## 🚀 A2A v2.0 API Endpoints
+
+### Nouveaux Endpoints A2A (v2.0)
+
+#### POST /api/agents/shaka/analyze-ethics
+Analyse éthique multi-framework via A2A Executor
+```json
+{
+  "content": "string",
+  "frameworks": ["utilitarian", "deontological"],
+  "context": {}
+}
+```
+
+#### POST /api/agents/shaka/resolve-conflict
+Résolution de conflits éthiques
+```json
+{
+  "conflict_description": "string",
+  "parties": ["agent1", "agent2"],
+  "resolution_strategy": "collaborative"
+}
+```
+
+#### POST /api/agents/shaka/consult-ethics
+Consultation éthique inter-agents
+```json
+{
+  "requesting_agent": "atlas-001",
+  "action_type": "security_update",
+  "ethical_concerns": ["privacy", "harm_prevention"]
+}
+```
+
+#### POST /api/agents/shaka/assess-risk
+Évaluation des risques éthiques
+```json
+{
+  "proposal": {},
+  "impact_scope": "global",
+  "risk_tolerance": 0.3
+}
+```
+
+#### POST /api/agents/shaka/monitor-ethics
+Configuration de la surveillance éthique
+```json
+{
+  "monitoring_scope": ["all_agents"],
+  "alert_conditions": ["ethical_violation"],
+  "reporting_frequency": "realtime"
+}
+```
+es
+### A2A Server Direct Access
+- **Port**: 8081
+- **Discovery**: GET http://localhost:8081/.well-known/ai-agent
+- **Execute**: POST http://localhost:8081/execute
+- **Consult**: POST http://localhost:8081/consult
+- **Assess**: POST http://localhost:8081/assess
+
+## 🏗️ Architecture A2A v2.0
+
+### Nouveaux Composants
+1. **ShakaAgentCard.ts**: Définition des capacités A2A
+2. **ShakaAgentExecutor.ts**: Exécuteur de tâches standardisé
+3. **ShakaA2AServer.ts**: Serveur A2A autonome
+4. **ShakaAgentTypes.ts**: Types TypeScript pour A2A
+
+### Intégration Multi-Agents
+- Communication directe avec Atlas (sécurité)
+- Consultation avec Edison (innovation)
+- Protocole A2A standardisé pour tous les agents
+
 ## 📚 Références
 
 - [Anthropic - Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
@@ -430,4 +507,4 @@ GET /api/agents/shaka/policies
 
 ---
 
-**Shaka (正)** - *"La justice n'est pas seulement une règle, c'est un mode de vie"*
+**Shaka (正) v2.0** - *"La justice n'est pas seulement une règle, c'est un mode de vie"*

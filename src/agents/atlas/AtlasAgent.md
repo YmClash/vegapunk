@@ -367,7 +367,7 @@ Atlas actively collaborates with other agents in the ecosystem:
 
 ### Running Services
 - **Main Backend**: http://localhost:8080 (Express + WebSocket)
-- **Atlas A2A Server**: http://localhost:8081 (A2A Protocol endpoints)
+- **Atlas A2A Server**: http://localhost:8082 (A2A Protocol endpoints)
 - **Frontend Dashboard**: http://localhost:5173 (React + Material-UI)
 - **Security Monitoring**: Active with 30-second scan intervals
 
@@ -396,7 +396,7 @@ curl http://localhost:8080/api/agents/atlas/status
 curl http://localhost:8080/api/agents/atlas/threats
 
 # Check A2A agent card
-curl http://localhost:8081/api/agents/atlas/.well-known/agent.json
+curl http://localhost:8082/api/agents/atlas/.well-known/agent.json
 ```
 
 ## Conclusion

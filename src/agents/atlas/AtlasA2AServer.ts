@@ -199,7 +199,7 @@ export class AtlasA2AServer {
     return this.app;
   }
 
-  public async start(port: number = 8081): Promise<void> {
+  public async start(port: number = 8082): Promise<void> {
     return new Promise((resolve) => {
       this.app.listen(port, () => {
         logger.info(`🛡️ [AtlasAgent] A2A Server started on http://localhost:${port}`);

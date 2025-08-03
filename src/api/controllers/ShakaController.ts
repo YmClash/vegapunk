@@ -7,12 +7,20 @@
 import { Request, Response } from 'express';
 import { createLogger } from '@utils/logger';
 import { ShakaAgent, type EthicalQueryRequest } from '@agents/shaka/ShakaAgent';
+import { ShakaAgentExecutor } from '@agents/shaka/ShakaAgentExecutor';
 import type { EthicalContext } from '@agents/shaka/EthicalPolicyEngine';
 
 const logger = createLogger('ShakaController');
 
 export class ShakaController {
-  constructor(private shakaAgent: ShakaAgent) {
+  private shakaExecutor?: ShakaAgentExecutor;
+  
+  constructor(
+    private shakaAgent: ShakaAgent,
+    shakaExecutor?: ShakaAgentExecutor,
+    private a2aProtocol?: any
+  ) {
+    this.shakaExecutor = shakaExecutor;
     this.setupEventListeners();
   }
 
@@ -343,6 +351,156 @@ export class ShakaController {
         success: false,
         error: 'Failed to detect ethical content',
         message: (error as Error).message,
+      });
+    }
+  };
+
+  /**
+   * POST /api/agents/shaka/analyze-ethics
+   * Analyze ethics using A2A executor (new endpoint aligned with A2A)
+   */
+  public analyzeEthics = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!this.shakaExecutor) {
+        res.status(503).json({
+          success: false,
+          error: 'A2A executor not available',
+        });
+        return;
+      }
+
+      const result = await this.shakaExecutor.executeTask({
+        skill: 'multi_framework_analysis',
+        input: req.body,
+        context: { source: 'api', timestamp: new Date() }
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Failed to analyze ethics via A2A', error);
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message 
+      });
+    }
+  };
+
+  /**
+   * POST /api/agents/shaka/resolve-conflict
+   * Resolve ethical conflict using A2A executor
+   */
+  public resolveConflict = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!this.shakaExecutor) {
+        res.status(503).json({
+          success: false,
+          error: 'A2A executor not available',
+        });
+        return;
+      }
+
+      const result = await this.shakaExecutor.executeTask({
+        skill: 'ethical_conflict_resolution',
+        input: req.body,
+        context: { source: 'api', timestamp: new Date() }
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Failed to resolve conflict via A2A', error);
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message 
+      });
+    }
+  };
+
+  /**
+   * POST /api/agents/shaka/consult-ethics
+   * Provide ethical consultation to other agents
+   */
+  public consultEthics = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!this.shakaExecutor) {
+        res.status(503).json({
+          success: false,
+          error: 'A2A executor not available',
+        });
+        return;
+      }
+
+      const result = await this.shakaExecutor.executeTask({
+        skill: 'inter_agent_consultation',
+        input: req.body,
+        context: { source: 'agent_consultation', timestamp: new Date() }
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Failed ethical consultation via A2A', error);
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message 
+      });
+    }
+  };
+
+  /**
+   * POST /api/agents/shaka/assess-risk
+   * Assess ethical risks using A2A executor
+   */
+  public assessRisk = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!this.shakaExecutor) {
+        res.status(503).json({
+          success: false,
+          error: 'A2A executor not available',
+        });
+        return;
+      }
+
+      const result = await this.shakaExecutor.executeTask({
+        skill: 'ethical_risk_assessment',
+        input: req.body,
+        context: { source: 'api', timestamp: new Date() }
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Failed to assess risk via A2A', error);
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message 
+      });
+    }
+  };
+
+  /**
+   * POST /api/agents/shaka/monitor-ethics
+   * Configure ethical monitoring using A2A executor
+   */
+  public monitorEthics = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!this.shakaExecutor) {
+        res.status(503).json({
+          success: false,
+          error: 'A2A executor not available',
+        });
+        return;
+      }
+
+      const result = await this.shakaExecutor.executeTask({
+        skill: 'ethical_monitoring',
+        input: req.body,
+        context: { source: 'api', timestamp: new Date() }
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Failed to configure monitoring via A2A', error);
+      res.status(500).json({ 
+        success: false,
+        error: (error as Error).message 
       });
     }
   };
