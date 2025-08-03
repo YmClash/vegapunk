@@ -6,49 +6,53 @@
 
 // A2A Protocol Agent Card Definition
 // Using local type definition until official SDK is available
-export interface AgentCard {
-  name: string;
-  description: string;
-  url: string;
-  provider: {
-    organization: string;
-    url: string;
-  };
-  version: string;
-  capabilities: {
-    streaming: boolean;
-    pushNotifications: boolean;
-    stateTransitionHistory: boolean;
-  };
-  securitySchemes: Record<string, any>;
-  security: Array<Record<string, any>>;
-  defaultInputModes: string[];
-  defaultOutputModes: string[];
-  skills: Array<{
-    id: string;
-    name: string;
-    description: string;
-    tags: string[];
-    examples: string[];
-    inputModes: string[];
-    outputModes: string[];
-  }>;
-  supportsAuthenticatedExtendedCard: boolean;
-}
+// export interface AgentCard {
+//   name: string;
+//   description: string;
+//   url: string;
+//   provider: {
+//     organization: string;
+//     url: string;
+//   };
+//   version: string;
+//   capabilities: {
+//     streaming: boolean;
+//     pushNotifications: boolean;
+//     stateTransitionHistory: boolean;
+//   };
+//   securitySchemes: Record<string, any>;
+//   security: Array<Record<string, any>>;
+//   defaultInputModes: string[];
+//   defaultOutputModes: string[];
+//   skills: Array<{
+//     id: string;
+//     name: string;
+//     description: string;
+//     tags: string[];
+//     examples: string[];
+//     inputModes: string[];
+//     outputModes: string[];
+//   }>;
+//   supportsAuthenticatedExtendedCard: boolean;
+// }
+
+import type { AgentCard} from "@a2a-js/sdk";
 
 export const atlasAgentCard: AgentCard = {
   name: "Atlas Security Agent",
   description: "Advanced security and automation agent specializing in threat detection, incident response, and proactive system protection with ethical oversight",
-  url: "http://localhost:8080/api/agents/atlas/",
+  url: "http://localhost:8082",
   provider: {
     organization: "Vegapunk Agentic Systems",
     url: "https://vegapunk.ai/agents/atlas",
+    // url: "https://localhost:8080/a2a-agents/atlas" // Local development URL
   },
   version: "2.0.0", // Version tri-protocol
   capabilities: {
     streaming: true,
     pushNotifications: true, // Security alerts en temps réel
     stateTransitionHistory: true,
+    // tools: ["threat_detection", "incident_response", "security_automation", "security_collaboration"]
   },
   securitySchemes: {
     bearerAuth: {
@@ -117,5 +121,5 @@ export const atlasAgentCard: AgentCard = {
       outputModes: ["text/plain", "application/json"],
     }
   ],
-  supportsAuthenticatedExtendedCard: true,
+  supportsAuthenticatedExtendedCard: false,
 };
