@@ -1,4 +1,12 @@
+/**
+ * ShakaA2AServer - A2A Protocol Server Setup
+ * Configures Atlas Agent as an A2A-compliant server
+ * Part of Tri-Protocol Integration
+ */
+
+
 import { AgentCard } from '../types/AgentTypes';
+// import { AgentCard} from
 
 export const shakaAgentCard: AgentCard = {
   name: "Shaka - Ethics & Analysis Agent",

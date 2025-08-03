@@ -3,6 +3,7 @@
  * A2A Protocol server implementation for Edison Agent
  */
 
+import express from 'express';
 import { createA2AExpressApp } from './EdisonAgentTypes';
 import { edisonAgentCard } from './EdisonAgentCard';
 import { EdisonAgentExecutor } from './EdisonAgentExecutor';
@@ -11,41 +12,53 @@ import { createLogger } from '@utils/logger';
 
 const logger = createLogger('EdisonA2AServer');
 
-/**
- * Start Edison A2A Server
- */
-export async function startEdisonA2AServer(
-  edisonAgent: EdisonAgent,
-  port: number = 8082
-): Promise<void> {
-  try {
-    logger.info('Starting Edison A2A Server...', { port });
+export class EdisonA2AServer {
+  private app: express.Application;
+  private edisonAgent: EdisonAgent;
+  private executor: EdisonAgentExecutor;
+  private a2aApp: any;
+
+  constructor(edisonAgent: EdisonAgent) {
+    this.edisonAgent = edisonAgent;
+    this.initialize();
+  }
+
+  private initialize(): void {
+    logger.info('Initializing Edison A2A Server...');
     
     // Create executor
-    const executor = new EdisonAgentExecutor({
-      edisonAgent,
+    this.executor = new EdisonAgentExecutor({
+      edisonAgent: this.edisonAgent,
       enableCollaboration: true,
       maxConcurrentTasks: 5
     });
     
     // Create A2A app
-    const a2aApp = createA2AExpressApp(edisonAgentCard, executor);
+    this.a2aApp = createA2AExpressApp(edisonAgentCard, this.executor);
+    this.app = this.a2aApp.app;
     
-    // Add health check endpoint
-    a2aApp.app.get('/health', (req: any, res: any) => {
+    // Setup custom routes
+    this.setupCustomRoutes();
+    
+    logger.info('Edison A2A Server initialized with tri-protocol support');
+  }
+
+  private setupCustomRoutes(): void {
+    // Health check endpoint
+    this.app.get('/health', (req: any, res: any) => {
       res.json({
         status: 'healthy',
         agent: 'edison',
         timestamp: new Date().toISOString(),
-        metrics: edisonAgent.getMetrics()
+        metrics: this.edisonAgent.getMetrics()
       });
     });
     
-    // Add Edison-specific endpoints
-    a2aApp.app.get('/api/edison/status', (req: any, res: any) => {
-      const metrics = edisonAgent.getMetrics();
-      const context = edisonAgent.getInnovationContext();
-      const thinkingMode = edisonAgent.getCurrentThinkingMode();
+    // Edison-specific endpoints
+    this.app.get('/api/edison/status', (req: any, res: any) => {
+      const metrics = this.edisonAgent.getMetrics();
+      const context = this.edisonAgent.getInnovationContext();
+      const thinkingMode = this.edisonAgent.getCurrentThinkingMode();
       
       res.json({
         status: 'active',
@@ -60,9 +73,9 @@ export async function startEdisonA2AServer(
     });
     
     // Innovation showcase endpoint
-    a2aApp.app.get('/api/edison/innovations', async (req: any, res: any) => {
+    this.app.get('/api/edison/innovations', async (req: any, res: any) => {
       try {
-        const context = edisonAgent.getInnovationContext();
+        const context = this.edisonAgent.getInnovationContext();
         res.json({
           innovations: context.activeInnovations,
           count: context.activeInnovations.length
@@ -73,7 +86,7 @@ export async function startEdisonA2AServer(
     });
     
     // Problem analysis endpoint
-    a2aApp.app.post('/api/edison/analyze', async (req: any, res: any) => {
+    this.app.post('/api/edison/analyze', async (req: any, res: any) => {
       try {
         const { problem, constraints, objectives } = req.body;
         
@@ -87,7 +100,7 @@ export async function startEdisonA2AServer(
           complexity: 7
         };
         
-        const solutions = await edisonAgent.solveComplexProblem(problemObj);
+        const solutions = await this.edisonAgent.solveComplexProblem(problemObj);
         
         res.json({
           success: true,
@@ -104,10 +117,10 @@ export async function startEdisonA2AServer(
     });
     
     // Reasoning endpoint
-    a2aApp.app.post('/api/edison/reason', async (req: any, res: any) => {
+    this.app.post('/api/edison/reason', async (req: any, res: any) => {
       try {
         const { premises } = req.body;
-        const result = await edisonAgent.performLogicalAnalysis(premises);
+        const result = await this.edisonAgent.performLogicalAnalysis(premises);
         
         res.json({
           success: true,
@@ -125,10 +138,10 @@ export async function startEdisonA2AServer(
     });
     
     // Research endpoint
-    a2aApp.app.post('/api/edison/research', async (req: any, res: any) => {
+    this.app.post('/api/edison/research', async (req: any, res: any) => {
       try {
         const { topic } = req.body;
-        const research = await edisonAgent.conductResearch(topic);
+        const research = await this.edisonAgent.conductResearch(topic);
         
         res.json({
           success: true,
@@ -146,11 +159,11 @@ export async function startEdisonA2AServer(
     });
     
     // Collaboration endpoint
-    a2aApp.app.post('/api/edison/collaborate', async (req: any, res: any) => {
+    this.app.post('/api/edison/collaborate', async (req: any, res: any) => {
       try {
         const { objective, participants, duration } = req.body;
         
-        const session = await edisonAgent.leadInnovationSession(
+        const session = await this.edisonAgent.leadInnovationSession(
           objective,
           participants || [],
           duration || 60
@@ -170,50 +183,60 @@ export async function startEdisonA2AServer(
       }
     });
     
-    // Start the server
-    await a2aApp.start(port);
-    
-    logger.info('Edison A2A Server started successfully', {
-      port,
-      endpoints: [
-        '/.well-known/a2a/agent',
-        '/tasks',
-        '/health',
-        '/api/edison/status',
-        '/api/edison/innovations',
-        '/api/edison/analyze',
-        '/api/edison/reason',
-        '/api/edison/research',
-        '/api/edison/collaborate'
-      ]
+    logger.info('Custom Edison routes configured');
+  }
+
+  public getExpressApp(): express.Application {
+    return this.app;
+  }
+
+  public async start(port: number = 8083): Promise<void> {
+    return new Promise((resolve) => {
+      this.a2aApp.start(port).then(() => {
+        logger.info(`💡 [EdisonAgent] A2A Server started on http://localhost:${port}`);
+        logger.info(`💡 [EdisonAgent] Agent Card: http://localhost:${port}/.well-known/a2a/agent`);
+        logger.info(`💡 [EdisonAgent] Health Check: http://localhost:${port}/health`);
+        logger.info("💡 [EdisonAgent] Innovation engine active");
+        
+        // Register with A2A topology
+        this.registerWithA2ATopology(port).then(() => {
+          resolve();
+        });
+      }).catch((error: any) => {
+        logger.error('Failed to start Edison A2A Server', error);
+        throw error;
+      });
     });
-    
-    // Register with A2A topology
-    await registerWithA2ATopology(port);
-    
-  } catch (error) {
-    logger.error('Failed to start Edison A2A Server', error);
-    throw error;
+  }
+
+  public async stop(): Promise<void> {
+    logger.info('Stopping EdisonA2AServer...');
+    // In production, would properly close server connections
+  }
+
+  /**
+   * Register Edison with A2A topology
+   */
+  private async registerWithA2ATopology(port: number): Promise<void> {
+    try {
+      // In a real implementation, this would register with the central A2A registry
+      logger.info('Registering Edison with A2A topology', {
+        agent: 'edison',
+        url: `http://localhost:${port}`,
+        capabilities: edisonAgentCard.capabilities
+      });
+      
+      // Simulate registration success
+      logger.info('Edison successfully registered with A2A topology');
+    } catch (error) {
+      logger.error('Failed to register with A2A topology', error);
+    }
   }
 }
 
-/**
- * Register Edison with A2A topology
- */
-async function registerWithA2ATopology(port: number): Promise<void> {
-  try {
-    // In a real implementation, this would register with the central A2A registry
-    logger.info('Registering Edison with A2A topology', {
-      agent: 'edison',
-      url: `http://localhost:${port}`,
-      capabilities: edisonAgentCard.capabilities
-    });
-    
-    // Simulate registration success
-    logger.info('Edison successfully registered with A2A topology');
-  } catch (error) {
-    logger.error('Failed to register with A2A topology', error);
-  }
+// Export for backward compatibility if needed
+export function createEdisonA2AServer(edisonAgent: EdisonAgent): EdisonA2AServer {
+  return new EdisonA2AServer(edisonAgent);
 }
 
 // Export for use in main application
